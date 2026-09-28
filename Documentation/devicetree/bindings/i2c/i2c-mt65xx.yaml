@@ -59,6 +59,7 @@ properties:
           - const: mediatek,mt8188-i2c
       - items:
           - enum:
+              - mediatek,mt6768-i2c
               - mediatek,mt6893-i2c
               - mediatek,mt8195-i2c
           - const: mediatek,mt8192-i2c
