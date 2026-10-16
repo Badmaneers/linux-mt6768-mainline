@@ -60,6 +60,12 @@
 	odm: odm {
 		compatible = "simple-bus";
 	};
+
+	/* Trustonic Mobicore SW IRQ number 329 = 32 + 297 */
+	mobicore: mobicore {
+		compatible = "trustonic,mobicore";
+		interrupts = <GIC_SPI 297 IRQ_TYPE_EDGE_RISING>;
+	};
 };
 
 gpio: &pio {
