@@ -1075,7 +1075,7 @@
 		};
 	};
 
-	soc {
+	soc: soc {
 		#address-cells = <2>;
 		#size-cells = <2>;
 		compatible = "simple-bus";
@@ -2108,6 +2108,26 @@
 			clock-names = "apb", "smi";
 			power-domains = <&spm MT6768_POWER_DOMAIN_CAM>;
 			mediatek,larb-id = <3>;
+		};
+
+		emi: emi@10219000 {
+			compatible = "mediatek,emi";
+			reg = <0 0x10219000 0 0x1000>,
+			      <0 0x10226000 0 0x1000>,
+			      <0 0x1022d000 0 0x1000>,
+			      <0 0x10235000 0 0x1000>,
+			      <0 0x1020e000 0 0x1000>;
+			interrupts = <GIC_SPI 161 IRQ_TYPE_LEVEL_LOW>;
+		};
+
+		scp: scp@10500000 {
+			compatible = "mediatek,mt6768-scp", "mediatek,scp";
+			reg = <0 0x10500000 0 0x80000>,
+			      <0 0x105c0000 0 0x3000>,
+			      <0 0x105c4000 0 0x1000>,
+			      <0 0x105d4000 0 0x6000>;
+			interrupts = <GIC_SPI 205 IRQ_TYPE_LEVEL_HIGH>;
+			status = "okay";
 		};
 	};
 };
