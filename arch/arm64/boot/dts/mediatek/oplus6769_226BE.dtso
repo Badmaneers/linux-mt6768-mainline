@@ -1,0 +1,342 @@
+// SPDX-License-Identifier: GPL-2.0
+/*
+ * Copyright (C) 2019 MediaTek Inc.
+ * Copyright (C) 2026 Badmaneers <dukebraham24@gmail.com>
+ *
+ * Board overlay for Realme MT6769 Variant (project 226BE).
+ */
+
+/dts-v1/;
+/plugin/;
+
+#include <dt-bindings/pinctrl/mediatek,mt6768-pinfunc.h>
+
+&{/} {
+	model = "Realme C25 (oplus6769_226BE)";
+	compatible = "realme,even-226be", "realme,rmx3430", "mediatek,mt6769",
+		     "mediatek,mt6768";
+};
+
+&chosen {
+	#address-cells = <2>;
+	#size-cells = <2>;
+	atag,videolfb-fb_base_l = <0x78e50000>;
+	atag,videolfb-fb_base_h = <0x0>;
+	atag,videolfb-islcmfound = <1>;
+	atag,videolfb-islcm_inited = <0>;
+	atag,videolfb-fps = <5942>;
+	atag,videolfb-vramSize = <0x00fb0000>;
+	atag,videolfb-lcmname = "nt36525b_hlt_even_boe_hdp_dsi_vdo_lcm";
+
+	framebuffer0: framebuffer@78e50000 {
+		compatible = "simple-framebuffer";
+		reg = <0 0x78e50000 0 0x00fb0000>;
+		width = <1080>;
+		height = <2400>;
+		stride = <(1080 * 4)>;
+		format = "a8r8g8b8";
+		status = "okay";
+	};
+};
+
+&odm {
+	led0: led@0 {
+		compatible = "mediatek,red";
+		led_mode = <0>;
+		data = <1>;
+		pwm_config = <0 0 0 0 0>;
+	};
+
+	led1: led@1 {
+		compatible = "mediatek,green";
+		led_mode = <0>;
+		data = <1>;
+		pwm_config = <0 0 0 0 0>;
+	};
+
+	led2: led@2 {
+		compatible = "mediatek,blue";
+		led_mode = <0>;
+		data = <1>;
+		pwm_config = <0 0 0 0 0>;
+	};
+
+	led3: led@3 {
+		compatible = "mediatek,jogball-backlight";
+		led_mode = <0>;
+		data = <1>;
+		pwm_config = <0 0 0 0 0>;
+	};
+
+	led4: led@4 {
+		compatible = "mediatek,keyboard-backlight";
+		led_mode = <0>;
+		data = <1>;
+		pwm_config = <0 0 0 0 0>;
+	};
+
+	led5: led@5 {
+		compatible = "mediatek,button-backlight";
+		led_mode = <0>;
+		data = <1>;
+		pwm_config = <0 0 0 0 0>;
+	};
+
+	led6: led@6 {
+		compatible = "mediatek,lcd-backlight";
+		led_mode = <4>;
+		led_rm = <1>;
+		data = <1>;
+		pwm_config = <0 3 0 0 0>;
+	};
+
+	vibrator0: vibrator@0 {
+		compatible = "mediatek,vibrator";
+		vib_timer = <25>;
+		vib_limit = <9>;
+		vib_vol = <9>;
+	};
+
+	oplus_project: oplus_project {
+		compatible = "oplus,oplus_project";
+	};
+};
+
+&mtkfb {
+	pinctrl-names = "lcm_rst_out0_gpio", "lcm_rst_out1_gpio", "lcd_bias_enp0_gpio", "lcd_bias_enp1_gpio",
+			"lcd_bias_enn0_gpio", "lcd_bias_enn1_gpio";
+	pinctrl-0 = <&mtkfb_pins_lcm_reset0>;
+	pinctrl-1 = <&mtkfb_pins_lcm_reset1>;
+	pinctrl-2 = <&mtkfb_pins_lcd_bias_enp0>;
+	pinctrl-3 = <&mtkfb_pins_lcd_bias_enp1>;
+	pinctrl-4 = <&mtkfb_pins_lcd_bias_enn0>;
+	pinctrl-5 = <&mtkfb_pins_lcd_bias_enn1>;
+	status = "okay";
+};
+
+&pio {
+	mtkfb_pins_lcm_reset0: lcm_rst_out0_gpio {
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO45__FUNC_GPIO45>;
+			slew-rate = <1>;
+			output-low;
+		};
+	};
+
+	mtkfb_pins_lcm_reset1: lcm_rst_out1_gpio {
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO45__FUNC_GPIO45>;
+			slew-rate = <1>;
+			output-high;
+		};
+	};
+
+	mtkfb_pins_lcd_bias_enp0: lcd_bias_enp0_gpio {
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO169__FUNC_GPIO169>;
+			slew-rate = <1>;
+			output-low;
+		};
+	};
+
+	mtkfb_pins_lcd_bias_enp1: lcd_bias_enp1_gpio {
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO169__FUNC_GPIO169>;
+			slew-rate = <1>;
+			output-high;
+		};
+	};
+
+	mtkfb_pins_lcd_bias_enn0: lcd_bias_enn0_gpio {
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO165__FUNC_GPIO165>;
+			slew-rate = <1>;
+			output-low;
+		};
+	};
+
+	mtkfb_pins_lcd_bias_enn1: lcd_bias_enn1_gpio {
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO165__FUNC_GPIO165>;
+			slew-rate = <1>;
+			output-high;
+		};
+	};
+};
+
+&gpio{
+	gpio_init_default = <0 0 0 0 1 1 1>,
+		<1 0 0 0 1 1 1>,
+		<2 0 0 0 1 0 1>,
+		<3 0 0 0 1 0 1>,
+		<4 0 1 0 1 0 0>,
+		<5 0 0 0 1 0 0>,
+		<6 0 0 0 1 0 0>,
+		<7 0 0 0 1 0 0>,
+		<8 0 1 0 1 0 0>,
+		<9 0 0 0 1 0 0>,
+		<10 0 0 0 1 1 0>,
+		<11 1 0 0 1 0 0>,
+		<12 2 0 0 1 0 0>,
+		<13 2 0 0 1 0 0>,
+		<14 2 1 0 0 0 0>,
+		<15 2 1 0 0 0 0>,
+		<16 2 1 0 0 0 0>,
+		<17 0 0 0 0 0 1>,
+		<18 0 0 0 1 1 1>,
+		<19 0 1 0 1 0 1>,
+		<20 0 0 0 0 0 1>,
+		<21 2 0 0 1 0 0>,
+		<22 2 1 1 0 0 0>,
+		<23 2 1 1 1 0 0>,
+		<24 2 1 0 0 0 0>,
+		<25 2 1 1 0 0 0>,
+		<26 2 1 0 1 0 0>,
+		<27 2 1 0 0 0 0>,
+		<28 2 0 0 1 0 0>,
+		<29 0 1 0 0 0 0>,
+		<30 0 1 0 0 0 0>,
+		<31 0 0 0 1 0 0>,
+		<32 7 1 0 0 0 0>,
+		<33 0 1 0 1 0 0>,
+		<34 0 1 0 1 0 0>,
+		<35 0 1 0 1 0 0>,
+		<36 2 1 0 0 0 0>,
+		<37 2 1 0 0 0 0>,
+		<38 0 0 0 1 1 0>,
+		<39 0 0 0 1 1 1>,
+		<40 0 0 0 1 0 0>,
+		<41 0 0 0 1 1 1>,
+		<42 0 0 0 1 1 1>,
+		<43 1 1 0 0 0 0>,
+		<44 1 0 0 1 0 0>,
+		<45 0 1 0 0 0 0>,
+		<46 1 0 0 1 1 0>,
+		<47 1 0 0 1 1 0>,
+		<48 1 0 0 1 1 1>,
+		<49 1 0 0 1 1 1>,
+		<50 1 0 0 1 1 1>,
+		<51 1 0 0 1 1 1>,
+		<52 1 0 0 1 0 0>,
+		<53 1 0 0 1 0 0>,
+		<54 1 0 0 1 0 0>,
+		<55 1 0 0 1 0 0>,
+		<56 1 0 0 1 0 0>,
+		<57 1 0 0 1 0 0>,
+		<58 0 0 0 1 0 0>,
+		<59 1 0 0 1 0 0>,
+		<60 1 0 0 1 0 0>,
+		<61 1 0 0 1 0 0>,
+		<62 1 0 0 1 0 0>,
+		<63 1 0 0 1 0 0>,
+		<64 1 0 0 1 0 0>,
+		<65 1 0 0 1 0 0>,
+		<66 0 0 0 1 0 0>,
+		<67 1 0 0 1 0 0>,
+		<68 1 0 0 1 0 0>,
+		<69 1 0 0 1 0 0>,
+		<70 1 0 0 1 0 0>,
+		<71 1 0 0 1 0 0>,
+		<72 1 0 0 1 0 0>,
+		<73 1 0 0 1 0 0>,
+		<74 1 0 0 1 0 0>,
+		<75 1 0 0 1 0 0>,
+		<76 0 0 0 1 1 0>,
+		<77 1 0 0 1 0 0>,
+		<78 1 0 0 1 0 0>,
+		<79 1 0 0 1 0 0>,
+		<80 1 0 0 1 0 0>,
+		<81 2 0 0 1 1 1>,
+		<82 1 0 0 1 1 1>,
+		<83 1 0 0 1 1 1>,
+		<84 2 0 0 1 1 1>,
+		<85 2 0 0 1 0 0>,
+		<86 2 1 0 0 0 0>,
+		<87 2 1 0 0 0 0>,
+		<88 2 1 0 0 0 0>,
+		<89 1 0 0 1 1 1>,
+		<90 1 0 0 1 1 1>,
+		<91 0 0 0 1 0 0>,
+		<92 0 0 0 1 0 0>,
+		<93 1 0 0 1 1 0>,
+		<94 1 0 0 1 1 0>,
+		<95 1 0 0 1 1 0>,
+		<96 1 1 0 0 0 0>,
+		<97 0 1 0 0 0 0>,
+		<98 0 1 0 0 0 0>,
+		<99 1 1 0 0 0 0>,
+		<100 1 1 0 0 0 0>,
+		<101 0 1 0 0 0 0>,
+		<102 0 1 0 0 0 0>,
+		<103 1 0 0 1 1 1>,
+		<104 1 0 0 1 1 1>,
+		<105 1 0 0 1 1 1>,
+		<106 1 0 0 1 1 1>,
+		<107 0 1 0 0 0 0>,
+		<108 1 1 0 0 0 0>,
+		<109 0 1 0 0 0 0>,
+		<110 0 1 0 0 0 0>,
+		<111 1 1 0 0 0 0>,
+		<112 0 0 0 0 0 0>,
+		<113 0 0 0 1 0 0>,
+		<114 0 0 0 1 0 0>,
+		<115 0 0 0 1 0 0>,
+		<116 0 0 0 1 0 0>,
+		<117 0 0 0 1 0 0>,
+		<118 0 0 0 1 0 0>,
+		<119 0 0 0 1 0 0>,
+		<120 0 0 0 1 0 0>,
+		<121 0 0 0 1 0 0>,
+		<134 1 0 0 1 0 1>,
+		<135 1 1 0 0 0 0>,
+		<136 1 1 0 0 0 0>,
+		<137 1 1 0 0 0 0>,
+		<138 1 1 0 0 0 0>,
+		<139 1 1 0 0 0 0>,
+		<140 1 0 0 1 0 0>,
+		<141 1 0 0 1 0 0>,
+		<142 1 0 0 1 0 0>,
+		<143 1 0 0 1 0 0>,
+		<144 1 0 0 1 0 0>,
+		<145 1 1 0 0 0 0>,
+		<146 1 1 0 0 0 0>,
+		<147 1 1 0 0 0 0>,
+		<148 1 1 0 0 0 0>,
+		<149 1 1 0 0 0 0>,
+		<150 4 0 0 1 1 0>,
+		<151 0 1 0 0 0 0>,
+		<152 0 1 0 1 1 0>,
+		<153 0 1 0 0 0 0>,
+		<154 1 1 0 0 0 0>,
+		<155 1 0 0 1 1 0>,
+		<156 1 1 0 0 0 0>,
+		<157 1 1 0 0 0 0>,
+		<158 1 1 0 0 0 0>,
+		<159 0 1 0 0 0 0>,
+		<160 0 1 0 0 0 0>,
+		<161 1 0 0 1 1 1>,
+		<162 1 0 0 1 1 1>,
+		<163 1 0 0 1 1 1>,
+		<164 1 0 0 1 1 1>,
+		<165 0 1 0 0 0 0>,
+		<166 0 1 0 0 0 0>,
+		<167 1 0 0 1 0 0>,
+		<168 1 0 0 1 0 0>,
+		<169 0 1 0 0 0 0>,
+		<170 1 0 0 1 1 1>,
+		<171 1 1 0 0 0 1>,
+		<172 1 1 0 0 0 0>,
+		<173 1 1 0 0 0 0>,
+		<174 1 0 0 1 1 0>,
+		<175 1 0 0 1 1 1>,
+		<176 1 0 0 1 1 1>,
+		<178 0 1 0 0 0 0>,
+		<179 0 1 0 0 0 0>,
+		<180 0 0 0 1 0 0>,
+		<181 0 0 0 1 0 0>,
+		<182 0 0 0 1 0 0>,
+		<183 0 0 0 1 0 0>,
+		<184 0 0 0 1 0 0>,
+		<185 0 0 0 1 0 0>,
+		<186 0 0 0 1 0 0>;
+};

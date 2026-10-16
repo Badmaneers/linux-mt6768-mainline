@@ -2,6 +2,13 @@
 dtb-$(CONFIG_ARCH_MEDIATEK) += mt2712-evb.dtb
 dtb-$(CONFIG_ARCH_MEDIATEK) += mt6755-evb.dtb
 dtb-$(CONFIG_ARCH_MEDIATEK) += mt6779-evb.dtb
+DTC_FLAGS_mt6768 += -@
+dtb-$(CONFIG_ARCH_MEDIATEK) += mt6768.dtb
+dtb-$(CONFIG_ARCH_MEDIATEK) += oplus6768_20761.dtbo
+dtb-$(CONFIG_ARCH_MEDIATEK) += oplus6769_2167A.dtbo
+dtb-$(CONFIG_ARCH_MEDIATEK) += oplus6769_216AF.dtbo
+dtb-$(CONFIG_ARCH_MEDIATEK) += oplus6769_226AF.dtbo
+dtb-$(CONFIG_ARCH_MEDIATEK) += oplus6769_226BE.dtbo
 dtb-$(CONFIG_ARCH_MEDIATEK) += mt6795-evb.dtb
 dtb-$(CONFIG_ARCH_MEDIATEK) += mt6795-sony-xperia-m5.dtb
 dtb-$(CONFIG_ARCH_MEDIATEK) += mt6797-evb.dtb
