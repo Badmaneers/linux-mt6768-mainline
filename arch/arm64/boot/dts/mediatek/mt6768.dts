@@ -9,6 +9,7 @@
 /dts-v1/;
 
 #include "mt6768.dtsi"
+#include "mt6358.dtsi"
 #include <dt-bindings/pinctrl/mt65xx.h>
 
 / {
@@ -27,7 +28,7 @@
 		#size-cells = <2>;
 		ranges;
 		stdout-path = "serial0:921600n8";
-		bootargs = "bootopt=64S3,32N2,64N2 earlycon earlycon=mtk8250,mmio32,0x11002000 keep_bootcon console=ttyS0,921600n8 console=tty0 clk_ignore_unused root=/dev/ram loop.max_part=7 ramoops.mem_address=0x4d010000 ramoops.mem_size=0x000e0000 ramoops.console_size=0x00040000 ramoops.record_size=0x00020000 ramoops.dump_oops=1";
+		bootargs = "bootopt=64S3,32N2,64N2 earlycon earlycon=mtk8250,mmio32,0x11002000 keep_bootcon console=ttyS0,921600n8 console=tty0 clk_ignore_unused pd_ignore_unused regulator_ignore_unused androidboot.selinux=permissive selinux=1 enforcing=0 root=/dev/ram loop.max_part=7 ramoops.mem_address=0x4d010000 ramoops.mem_size=0x000e0000 ramoops.console_size=0x00040000 ramoops.record_size=0x00010000 ramoops.pmsg_size=0x00010000 ramoops.dump_oops=1";
 		kaslr-seed = <0 0>;
 
 		framebuffer0: framebuffer@78e50000 {
@@ -93,6 +94,13 @@ gpio: &pio {
 	non-removable;
 	supports-cqe;
 	hs400-ds-delay = <0x12814>;
+	vmmc-supply = <&mt6358_vemc_reg>;
+	vqmmc-supply = <&mt6358_vio18_reg>;
+};
+
+&pmic {
+	interrupt-parent = <&pio>;
+	interrupts = <144 IRQ_TYPE_LEVEL_HIGH>;
 };
 
 &pio {
