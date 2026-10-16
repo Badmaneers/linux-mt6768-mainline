@@ -689,6 +689,7 @@ static int __init early_mtk8250_setup(struct earlycon_device *device,
 }
 
 OF_EARLYCON_DECLARE(mtk8250, "mediatek,mt6577-uart", early_mtk8250_setup);
+EARLYCON_DECLARE(mtk8250, early_mtk8250_setup);
 #endif
 
 MODULE_AUTHOR("Matthias Brugger");
