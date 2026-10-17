@@ -163,6 +163,29 @@
 	domain-supply = <&mt6358_vsram_gpu_reg>;
 };
 
+&i2c7 {
+	status = "okay";
+	#address-cells = <1>;
+	#size-cells = <0>;
+	clock-frequency = <400000>;
+
+	charger@55 {
+		compatible = "qcom,smb1351-charger";
+		reg = <0x55>;
+		interrupt-parent = <&pio>;
+		interrupts = <20 IRQ_TYPE_LEVEL_LOW>;
+		monitored-battery = <&battery>;
+		enable-gpios = <&pio 166 GPIO_ACTIVE_LOW>;
+		input-current-limit-microamp = <1500000>;
+
+		smb1351_otg_vbus: usb-vbus {
+			regulator-name = "smb1351-usb-otg-vbus";
+			regulator-min-microvolt = <5000000>;
+			regulator-max-microvolt = <5000000>;
+		};
+	};
+};
+
 &mfg {
 	domain-supply = <&mt6358_vgpu_reg>;
 };
