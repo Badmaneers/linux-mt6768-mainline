@@ -194,6 +194,7 @@ struct mtk_dsi_driver_data {
 	bool has_size_ctl;
 	bool cmdq_long_packet_ctl;
 	bool support_per_frame_lp;
+	bool legacy_vdo_timing;
 };
 
 struct mtk_dsi {
@@ -517,6 +518,27 @@ static void mtk_dsi_config_vdo_timing_per_line_lp(struct mtk_dsi *dsi)
 		dsi_tmp_buf_bpp = 2;
 	else
 		dsi_tmp_buf_bpp = 3;
+
+	if (dsi->driver_data->legacy_vdo_timing) {
+		if (dsi->mode_flags & MIPI_DSI_MODE_VIDEO_SYNC_PULSE) {
+			horizontal_sync_active_byte =
+				ALIGN(max_t(int, 0, vm->hsync_len * dsi_tmp_buf_bpp - 10), 4);
+			horizontal_backporch_byte =
+				ALIGN(max_t(int, 0, vm->hback_porch * dsi_tmp_buf_bpp - 10), 4);
+		} else {
+			horizontal_sync_active_byte =
+				ALIGN(max_t(int, 0, vm->hsync_len * dsi_tmp_buf_bpp - 4), 4);
+			horizontal_backporch_byte =
+				ALIGN(max_t(int, 0, (vm->hback_porch + vm->hsync_len) * dsi_tmp_buf_bpp - 10), 4);
+		}
+		horizontal_frontporch_byte =
+			ALIGN(max_t(int, 0, vm->hfront_porch * dsi_tmp_buf_bpp - 12), 4);
+
+		writel(horizontal_sync_active_byte, dsi->regs + DSI_HSA_WC);
+		writel(horizontal_backporch_byte, dsi->regs + DSI_HBP_WC);
+		writel(horizontal_frontporch_byte, dsi->regs + DSI_HFP_WC);
+		return;
+	}
 
 	horizontal_sync_active_byte = (vm->hsync_len * dsi_tmp_buf_bpp - 10);
 
@@ -1317,6 +1339,15 @@ static const struct mtk_dsi_driver_data mt2701_dsi_driver_data = {
 	.reg_shadow_dbg_off = 0x190
 };
 
+static const struct mtk_dsi_driver_data mt6768_dsi_driver_data = {
+	.reg_cmdq_off = 0x200,
+	.reg_vm_cmd_off = 0x130,
+	.reg_shadow_dbg_off = 0x190,
+	.has_shadow_ctl = true,
+	.has_size_ctl = true,
+	.legacy_vdo_timing = true,
+};
+
 static const struct mtk_dsi_driver_data mt8183_dsi_driver_data = {
 	.reg_cmdq_off = 0x200,
 	.reg_vm_cmd_off = 0x130,
@@ -1345,7 +1376,7 @@ static const struct mtk_dsi_driver_data mt8188_dsi_driver_data = {
 
 static const struct of_device_id mtk_dsi_of_match[] = {
 	{ .compatible = "mediatek,mt2701-dsi", .data = &mt2701_dsi_driver_data },
-	{ .compatible = "mediatek,mt6768-dsi", .data = &mt8183_dsi_driver_data },
+	{ .compatible = "mediatek,mt6768-dsi", .data = &mt6768_dsi_driver_data },
 	{ .compatible = "mediatek,mt8167-dsi", .data = &mt2701_dsi_driver_data },
 	{ .compatible = "mediatek,mt8173-dsi", .data = &mt8173_dsi_driver_data },
 	{ .compatible = "mediatek,mt8183-dsi", .data = &mt8183_dsi_driver_data },
