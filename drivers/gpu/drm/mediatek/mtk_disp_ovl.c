@@ -11,6 +11,7 @@
 #include <linux/component.h>
 #include <linux/module.h>
 #include <linux/of.h>
+#include <linux/of_platform.h>
 #include <linux/platform_device.h>
 #include <linux/pm_runtime.h>
 #include <linux/soc/mediatek/mtk-cmdq.h>
@@ -170,8 +171,14 @@ struct mtk_disp_ovl {
 static irqreturn_t mtk_disp_ovl_irq_handler(int irq, void *dev_id)
 {
 	struct mtk_disp_ovl *priv = dev_id;
+	u32 val;
+
+	val = readl(priv->regs + DISP_REG_OVL_INTSTA);
+	if (!val)
+		return IRQ_NONE;
 
 	/* Clear frame completion interrupt */
+	writel(~val, priv->regs + DISP_REG_OVL_INTSTA);
 	writel(0x0, priv->regs + DISP_REG_OVL_INTSTA);
 
 	if (!priv->vblank_cb)
@@ -607,6 +614,31 @@ static const struct component_ops mtk_disp_ovl_component_ops = {
 	.unbind = mtk_disp_ovl_unbind,
 };
 
+static int mtk_disp_link_larb(struct device *dev)
+{
+	struct device_node *larb_node;
+	struct platform_device *larb_pdev;
+	struct device_link *link;
+
+	larb_node = of_parse_phandle(dev->of_node, "mediatek,larb", 0);
+	if (!larb_node)
+		return 0;
+
+	larb_pdev = of_find_device_by_node(larb_node);
+	of_node_put(larb_node);
+	if (!larb_pdev)
+		return -EPROBE_DEFER;
+
+	link = device_link_add(dev, &larb_pdev->dev,
+			       DL_FLAG_PM_RUNTIME | DL_FLAG_STATELESS);
+	if (!link) {
+		dev_err(dev, "Failed to link larb device\n");
+		return -EINVAL;
+	}
+
+	return 0;
+}
+
 static int mtk_disp_ovl_probe(struct platform_device *pdev)
 {
 	struct device *dev = &pdev->dev;
@@ -640,6 +672,10 @@ static int mtk_disp_ovl_probe(struct platform_device *pdev)
 	priv->data = of_device_get_match_data(dev);
 	platform_set_drvdata(pdev, priv);
 
+	ret = mtk_disp_link_larb(dev);
+	if (ret)
+		return dev_err_probe(dev, ret, "Failed to link larb\n");
+
 	ret = devm_request_irq(dev, irq, mtk_disp_ovl_irq_handler,
 			       IRQF_TRIGGER_NONE, dev_name(dev), priv);
 	if (ret < 0)
@@ -667,6 +703,19 @@ static const struct mtk_disp_ovl_data mt2701_ovl_driver_data = {
 	.gmc_bits = 8,
 	.layer_nr = 4,
 	.fmt_rgb565_is_0 = false,
+	.formats = mt8173_formats,
+	.num_formats = ARRAY_SIZE(mt8173_formats),
+};
+
+static const struct mtk_disp_ovl_data mt6768_ovl_driver_data = {
+	.addr = DISP_REG_OVL_ADDR_MT8173,
+	.gmc_bits = 10,
+	.layer_nr = 4,
+	.fmt_rgb565_is_0 = true,
+	.smi_id_en = true,
+	.blend_modes = BIT(DRM_MODE_BLEND_PREMULTI) |
+		       BIT(DRM_MODE_BLEND_COVERAGE) |
+		       BIT(DRM_MODE_BLEND_PIXEL_NONE),
 	.formats = mt8173_formats,
 	.num_formats = ARRAY_SIZE(mt8173_formats),
 };
@@ -752,6 +801,10 @@ static const struct mtk_disp_ovl_data mt8195_ovl_driver_data = {
 static const struct of_device_id mtk_disp_ovl_driver_dt_match[] = {
 	{ .compatible = "mediatek,mt2701-disp-ovl",
 	  .data = &mt2701_ovl_driver_data},
+	{ .compatible = "mediatek,mt6768-disp-ovl",
+	  .data = &mt6768_ovl_driver_data},
+	{ .compatible = "mediatek,mt6768-disp-ovl-2l",
+	  .data = &mt8192_ovl_2l_driver_data},
 	{ .compatible = "mediatek,mt8167-disp-ovl",
 	  .data = &mt8167_ovl_driver_data},
 	{ .compatible = "mediatek,mt8173-disp-ovl",

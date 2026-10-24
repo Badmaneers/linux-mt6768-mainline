@@ -599,6 +599,7 @@ static void mtk_crtc_update_config(struct mtk_crtc *mtk_crtc, bool needs_vblank)
 		mtk_mutex_acquire(mtk_crtc->mutex);
 		mtk_crtc_ddp_config(crtc, NULL);
 		mtk_mutex_release(mtk_crtc->mutex);
+		mtk_mutex_enable(mtk_crtc->mutex);
 	}
 #if IS_REACHABLE(CONFIG_MTK_CMDQ)
 	if (mtk_crtc->cmdq_client.chan) {
@@ -666,9 +667,10 @@ static void mtk_crtc_ddp_irq(void *data)
 static int mtk_crtc_enable_vblank(struct drm_crtc *crtc)
 {
 	struct mtk_crtc *mtk_crtc = to_mtk_crtc(crtc);
-	struct mtk_ddp_comp *comp = mtk_crtc->ddp_comp[0];
+	int i;
 
-	mtk_ddp_comp_enable_vblank(comp);
+	for (i = 0; i < mtk_crtc->ddp_comp_nr; i++)
+		mtk_ddp_comp_enable_vblank(mtk_crtc->ddp_comp[i]);
 
 	return 0;
 }
@@ -676,9 +678,10 @@ static int mtk_crtc_enable_vblank(struct drm_crtc *crtc)
 static void mtk_crtc_disable_vblank(struct drm_crtc *crtc)
 {
 	struct mtk_crtc *mtk_crtc = to_mtk_crtc(crtc);
-	struct mtk_ddp_comp *comp = mtk_crtc->ddp_comp[0];
+	int i;
 
-	mtk_ddp_comp_disable_vblank(comp);
+	for (i = 0; i < mtk_crtc->ddp_comp_nr; i++)
+		mtk_ddp_comp_disable_vblank(mtk_crtc->ddp_comp[i]);
 }
 
 static void mtk_crtc_update_output(struct drm_crtc *crtc,

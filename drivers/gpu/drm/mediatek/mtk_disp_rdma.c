@@ -9,6 +9,7 @@
 #include <linux/component.h>
 #include <linux/module.h>
 #include <linux/of.h>
+#include <linux/of_platform.h>
 #include <linux/platform_device.h>
 #include <linux/pm_runtime.h>
 #include <linux/soc/mediatek/mtk-cmdq.h>
@@ -29,6 +30,7 @@
 #define DISP_REG_RDMA_GLOBAL_CON		0x0010
 #define RDMA_ENGINE_EN					BIT(0)
 #define RDMA_MODE_MEMORY				BIT(1)
+#define RDMA_RESET					BIT(4)
 #define DISP_REG_RDMA_SIZE_CON_0		0x0014
 #define RDMA_MATRIX_ENABLE				BIT(17)
 #define RDMA_MATRIX_INT_MTX_SEL				GENMASK(23, 20)
@@ -91,8 +93,14 @@ struct mtk_disp_rdma {
 static irqreturn_t mtk_disp_rdma_irq_handler(int irq, void *dev_id)
 {
 	struct mtk_disp_rdma *priv = dev_id;
+	u32 val;
+
+	val = readl(priv->regs + DISP_REG_RDMA_INT_STATUS);
+	if (!val)
+		return IRQ_NONE;
 
 	/* Clear frame completion interrupt */
+	writel(~val, priv->regs + DISP_REG_RDMA_INT_STATUS);
 	writel(0x0, priv->regs + DISP_REG_RDMA_INT_STATUS);
 
 	if (!priv->vblank_cb)
@@ -172,6 +180,8 @@ void mtk_rdma_clk_disable(struct device *dev)
 
 void mtk_rdma_start(struct device *dev)
 {
+	rdma_update_bits(dev, DISP_REG_RDMA_GLOBAL_CON, RDMA_RESET, RDMA_RESET);
+	rdma_update_bits(dev, DISP_REG_RDMA_GLOBAL_CON, RDMA_RESET, 0);
 	rdma_update_bits(dev, DISP_REG_RDMA_GLOBAL_CON, RDMA_ENGINE_EN,
 			 RDMA_ENGINE_EN);
 }
@@ -194,6 +204,10 @@ void mtk_rdma_config(struct device *dev, unsigned int width,
 			   DISP_REG_RDMA_SIZE_CON_0, 0xfff);
 	mtk_ddp_write_mask(cmdq_pkt, height, &rdma->cmdq_reg, rdma->regs,
 			   DISP_REG_RDMA_SIZE_CON_1, 0xfffff);
+
+	/* Clear RDMA_MODE_MEMORY to ensure direct link mode when fed by OVL */
+	mtk_ddp_write_mask(cmdq_pkt, 0, &rdma->cmdq_reg, rdma->regs,
+			   DISP_REG_RDMA_GLOBAL_CON, RDMA_MODE_MEMORY);
 
 	if (rdma->fifo_size)
 		rdma_fifo_size = rdma->fifo_size;
@@ -309,6 +323,31 @@ static const struct component_ops mtk_disp_rdma_component_ops = {
 	.unbind = mtk_disp_rdma_unbind,
 };
 
+static int mtk_disp_link_larb(struct device *dev)
+{
+	struct device_node *larb_node;
+	struct platform_device *larb_pdev;
+	struct device_link *link;
+
+	larb_node = of_parse_phandle(dev->of_node, "mediatek,larb", 0);
+	if (!larb_node)
+		return 0;
+
+	larb_pdev = of_find_device_by_node(larb_node);
+	of_node_put(larb_node);
+	if (!larb_pdev)
+		return -EPROBE_DEFER;
+
+	link = device_link_add(dev, &larb_pdev->dev,
+			       DL_FLAG_PM_RUNTIME | DL_FLAG_STATELESS);
+	if (!link) {
+		dev_err(dev, "Failed to link larb device\n");
+		return -EINVAL;
+	}
+
+	return 0;
+}
+
 static int mtk_disp_rdma_probe(struct platform_device *pdev)
 {
 	struct device *dev = &pdev->dev;
@@ -349,14 +388,18 @@ static int mtk_disp_rdma_probe(struct platform_device *pdev)
 	writel(0x0, priv->regs + DISP_REG_RDMA_INT_ENABLE);
 	writel(0x0, priv->regs + DISP_REG_RDMA_INT_STATUS);
 
+	priv->data = of_device_get_match_data(dev);
+
+	platform_set_drvdata(pdev, priv);
+
+	ret = mtk_disp_link_larb(dev);
+	if (ret)
+		return dev_err_probe(dev, ret, "Failed to link larb\n");
+
 	ret = devm_request_irq(dev, irq, mtk_disp_rdma_irq_handler,
 			       IRQF_TRIGGER_NONE, dev_name(dev), priv);
 	if (ret < 0)
 		return dev_err_probe(dev, ret, "Failed to request irq %d\n", irq);
-
-	priv->data = of_device_get_match_data(dev);
-
-	platform_set_drvdata(pdev, priv);
 
 	pm_runtime_enable(dev);
 
