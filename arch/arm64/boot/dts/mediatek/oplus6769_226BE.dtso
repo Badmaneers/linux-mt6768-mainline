@@ -10,6 +10,7 @@
 /plugin/;
 
 #include <dt-bindings/pinctrl/mediatek,mt6768-pinfunc.h>
+#include <dt-bindings/gpio/gpio.h>
 
 &{/} {
 	model = "Realme C25 (oplus6769_226BE)";
@@ -340,3 +341,51 @@
 		<185 0 0 0 1 0 0>,
 		<186 0 0 0 1 0 0>;
 };
+
+&i2c0 {
+	#address-cells = <1>;
+	#size-cells = <0>;
+
+	lcm_bias@3e {
+		compatible = "orient-chip,ocp2130", "siliconmitus,sm5109", "ti,tps65132";
+		reg = <0x3e>;
+
+		outp: outp {
+			regulator-name = "lcm_bias_outp";
+			regulator-min-microvolt = <4000000>;
+			regulator-max-microvolt = <6000000>;
+			enable-gpios = <&pio 169 GPIO_ACTIVE_HIGH>;
+		};
+
+		outn: outn {
+			regulator-name = "lcm_bias_outn";
+			regulator-min-microvolt = <4000000>;
+			regulator-max-microvolt = <6000000>;
+			enable-gpios = <&pio 165 GPIO_ACTIVE_HIGH>;
+		};
+	};
+};
+
+&dsi0 {
+	#address-cells = <1>;
+	#size-cells = <0>;
+
+	panel@0 {
+		compatible = "realme,even-boe-nt36525b";
+		reg = <0>;
+		reset-gpios = <&pio 45 GPIO_ACTIVE_LOW>;
+		vsp-supply = <&outp>;
+		vsn-supply = <&outn>;
+
+		port {
+			panel_in: endpoint {
+				remote-endpoint = <&dsi_out>;
+			};
+		};
+	};
+};
+
+&dsi_out {
+	remote-endpoint = <&panel_in>;
+};
+

@@ -203,3 +203,16 @@ gpio: &pio {
 &mfg {
 	domain-supply = <&mt6358_vgpu_reg>;
 };
+
+&mipi_tx0 {
+	status = "okay";
+};
+
+&dsi0 {
+	status = "okay";
+};
+
+&i2c0 {
+	status = "okay";
+};
+

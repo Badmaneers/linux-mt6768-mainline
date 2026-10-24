@@ -1409,6 +1409,8 @@
 				 <&infracfg_ao CLK_INFRA_AP_DMA>;
 			clock-names = "main", "dma";
 			clock-div = <1>;
+			#address-cells = <1>;
+			#size-cells = <0>;
 			status = "disabled";
 		};
 
@@ -1799,7 +1801,7 @@
 				port@1 {
 					reg = <1>;
 					ovl0_out: endpoint {
-						remote-endpoint = <&ovl_2l0_in>;
+						remote-endpoint = <&rdma0_in>;
 					};
 				};
 			};
@@ -1813,6 +1815,7 @@
 			clocks = <&mmsys CLK_MM_DISP_OVL0_2L>;
 			iommus = <&iommu M4U_PORT_DISP_2L_OVL0_LARB0>;
 			mediatek,gce-client-reg = <&gce SUBSYS_1400XXXX 0xc000 0x1000>;
+			status = "disabled";
 
 			ports {
 				#address-cells = <1>;
@@ -1841,6 +1844,7 @@
 			power-domains = <&spm MT6768_POWER_DOMAIN_MM>;
 			clocks = <&mmsys CLK_MM_DISP_RDMA0>;
 			iommus = <&iommu M4U_PORT_DISP_RDMA0>;
+			mediatek,rdma-fifo-size = <5120>;
 			mediatek,gce-client-reg = <&gce SUBSYS_1400XXXX 0xd000 0x1000>;
 
 			ports {
@@ -1850,7 +1854,7 @@
 				port@0 {
 					reg = <0>;
 					rdma0_in: endpoint {
-						remote-endpoint = <&ovl_2l0_out>;
+						remote-endpoint = <&ovl0_out>;
 					};
 				};
 
@@ -2026,6 +2030,8 @@
 			phys = <&mipi_tx0>;
 			phy-names = "dphy";
 			resets = <&mmsys MT6768_MMSYS_SW0_RST_B_DSI0>;
+			#address-cells = <1>;
+			#size-cells = <0>;
 			status = "disabled";
 
 			ports {
