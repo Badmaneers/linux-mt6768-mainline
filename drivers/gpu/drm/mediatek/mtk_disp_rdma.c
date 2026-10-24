@@ -68,6 +68,7 @@ static const u32 mt8173_formats[] = {
 	DRM_FORMAT_RGB565,
 	DRM_FORMAT_UYVY,
 	DRM_FORMAT_YUYV,
+	DRM_FORMAT_RGB332,
 };
 
 struct mtk_disp_rdma_data {
@@ -261,6 +262,8 @@ static unsigned int rdma_fmt_convert(struct mtk_disp_rdma *rdma,
 		return MEM_MODE_INPUT_FORMAT_UYVY;
 	case DRM_FORMAT_YUYV:
 		return MEM_MODE_INPUT_FORMAT_YUYV;
+	case DRM_FORMAT_RGB332:
+		return MEM_MODE_INPUT_FORMAT_RGB565;
 	}
 }
 
@@ -279,6 +282,9 @@ void mtk_rdma_layer_config(struct device *dev, unsigned int idx,
 	unsigned int pitch = pending->pitch & 0xffff;
 	unsigned int fmt = pending->format;
 	unsigned int con;
+
+	if (fmt == DRM_FORMAT_RGB332)
+		return;
 
 	con = rdma_fmt_convert(rdma, fmt);
 	mtk_ddp_write_relaxed(cmdq_pkt, con, &rdma->cmdq_reg, rdma->regs, DISP_RDMA_MEM_CON);

@@ -114,6 +114,25 @@ static const u32 mt8173_formats[] = {
 	DRM_FORMAT_RGB565,
 	DRM_FORMAT_UYVY,
 	DRM_FORMAT_YUYV,
+	DRM_FORMAT_RGB332,
+};
+
+static const u32 mt6768_formats[] = {
+	DRM_FORMAT_XRGB8888,
+	DRM_FORMAT_ARGB8888,
+	DRM_FORMAT_BGRX8888,
+	DRM_FORMAT_BGRA8888,
+	DRM_FORMAT_ABGR8888,
+	DRM_FORMAT_XBGR8888,
+	DRM_FORMAT_RGBX8888,
+	DRM_FORMAT_RGBA8888,
+	DRM_FORMAT_RGB888,
+	DRM_FORMAT_BGR888,
+	DRM_FORMAT_RGB565,
+	DRM_FORMAT_BGR565,
+	DRM_FORMAT_UYVY,
+	DRM_FORMAT_YUYV,
+	DRM_FORMAT_RGB332,
 };
 
 static const u32 mt8195_formats[] = {
@@ -433,6 +452,8 @@ static unsigned int mtk_ovl_fmt_convert(struct mtk_disp_ovl *ovl,
 	default:
 	case DRM_FORMAT_RGB565:
 		return OVL_CON_CLRFMT_RGB565(ovl);
+	case DRM_FORMAT_RGB332:
+		return 0;
 	case DRM_FORMAT_BGR565:
 		return OVL_CON_CLRFMT_RGB565(ovl) | OVL_CON_BYTE_SWAP;
 	case DRM_FORMAT_RGB888:
@@ -513,7 +534,7 @@ void mtk_ovl_layer_config(struct device *dev, unsigned int idx,
 	unsigned int ignore_pixel_alpha = 0;
 	unsigned int con;
 
-	if (!pending->enable) {
+	if (!pending->enable || pending->format == DRM_FORMAT_RGB332) {
 		mtk_ovl_layer_off(dev, idx, cmdq_pkt);
 		return;
 	}
@@ -716,8 +737,8 @@ static const struct mtk_disp_ovl_data mt6768_ovl_driver_data = {
 	.blend_modes = BIT(DRM_MODE_BLEND_PREMULTI) |
 		       BIT(DRM_MODE_BLEND_COVERAGE) |
 		       BIT(DRM_MODE_BLEND_PIXEL_NONE),
-	.formats = mt8173_formats,
-	.num_formats = ARRAY_SIZE(mt8173_formats),
+	.formats = mt6768_formats,
+	.num_formats = ARRAY_SIZE(mt6768_formats),
 };
 
 static const struct mtk_disp_ovl_data mt8167_ovl_driver_data = {

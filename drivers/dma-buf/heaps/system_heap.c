@@ -626,6 +626,23 @@ static int __init system_heap_create(void)
 	if (IS_ERR(sys_heap))
 		return PTR_ERR(sys_heap);
 
+	dma_coerce_mask_and_coherent(dma_heap_get_dev(sys_heap), DMA_BIT_MASK(64));
+
+	/* Register MediaTek vendor HAL alias heaps: mtk_mm and mtk_mm-uncached */
+	exp_info.name = "mtk_mm-uncached";
+	exp_info.ops = &system_uncached_heap_ops;
+	exp_info.priv = &system_uncached_heap_priv;
+	sys_uncached_heap = dma_heap_add(&exp_info);
+	if (!IS_ERR(sys_uncached_heap))
+		dma_coerce_mask_and_coherent(dma_heap_get_dev(sys_uncached_heap), DMA_BIT_MASK(64));
+
+	exp_info.name = "mtk_mm";
+	exp_info.ops = &system_heap_ops;
+	exp_info.priv = &system_heap_priv;
+	sys_heap = dma_heap_add(&exp_info);
+	if (!IS_ERR(sys_heap))
+		dma_coerce_mask_and_coherent(dma_heap_get_dev(sys_heap), DMA_BIT_MASK(64));
+
 	if (IS_ENABLED(CONFIG_HIGHMEM) ||
 	    !IS_ENABLED(CONFIG_DMABUF_HEAPS_SYSTEM_CC_SHARED) ||
 	    !cc_platform_has(CC_ATTR_MEM_ENCRYPT))
