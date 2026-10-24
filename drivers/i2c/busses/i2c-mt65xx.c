@@ -509,6 +509,19 @@ static const struct mtk_i2c_compatible mt8188_compat = {
 	.max_dma_support = 36,
 };
 
+static const struct mtk_i2c_compatible mt6768_compat = {
+	.regs = mt_i2c_regs_v2,
+	.pmic_i2c = 0,
+	.dcm = 0,
+	.auto_restart = 1,
+	.aux_len_reg = 1,
+	.timing_adjust = 1,
+	.dma_sync = 1,
+	.ltiming_adjust = 1,
+	.apdma_sync = 1,
+	.max_dma_support = 36,
+};
+
 static const struct mtk_i2c_compatible mt8192_compat = {
 	.quirks = &mt8183_i2c_quirks,
 	.regs = mt_i2c_regs_v2,
@@ -527,6 +540,7 @@ static const struct of_device_id mtk_i2c_of_match[] = {
 	{ .compatible = "mediatek,mt2712-i2c", .data = &mt2712_compat },
 	{ .compatible = "mediatek,mt6577-i2c", .data = &mt6577_compat },
 	{ .compatible = "mediatek,mt6589-i2c", .data = &mt6589_compat },
+	{ .compatible = "mediatek,mt6768-i2c", .data = &mt6768_compat },
 	{ .compatible = "mediatek,mt7622-i2c", .data = &mt7622_compat },
 	{ .compatible = "mediatek,mt7981-i2c", .data = &mt7981_compat },
 	{ .compatible = "mediatek,mt7986-i2c", .data = &mt7986_compat },
@@ -1503,6 +1517,8 @@ static int mtk_i2c_probe(struct platform_device *pdev)
 		goto err_bulk_unprepare;
 
 	platform_set_drvdata(pdev, i2c);
+
+	dev_info(&pdev->dev, "MediaTek I2C adapter successfully probed\n");
 
 	return 0;
 

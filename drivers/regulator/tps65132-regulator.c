@@ -55,6 +55,7 @@ struct tps65132_reg_pdata {
 
 struct tps65132_regulator {
 	struct device *dev;
+	struct regmap *rmap;
 	struct tps65132_reg_pdata reg_pdata[TPS65132_MAX_REGULATORS];
 };
 
@@ -68,7 +69,11 @@ static int tps65132_regulator_enable(struct regulator_dev *rdev)
 	if (!IS_ERR(rpdata->en_gpiod)) {
 		gpiod_set_value_cansleep(rpdata->en_gpiod, 1);
 		rpdata->ena_gpio_state = 1;
+		usleep_range(3000, 5000);
 	}
+
+	if (tps->rmap)
+		regcache_sync(tps->rmap);
 
 	/* Hardware automatically enable discharge bit in enable */
 	if (rdev->constraints->active_discharge ==
@@ -101,6 +106,9 @@ static int tps65132_regulator_disable(struct regulator_dev *rdev)
 			     TPS65132_ACT_DIS_TIME_SLACK);
 		gpiod_set_value_cansleep(rpdata->act_dis_gpiod, 0);
 	}
+
+	if (tps->rmap)
+		regcache_mark_dirty(tps->rmap);
 
 	return 0;
 }
@@ -211,11 +219,20 @@ static const struct regmap_access_table tps65132_no_reg_table = {
 	.n_no_ranges = ARRAY_SIZE(tps65132_no_reg_ranges),
 };
 
+static const struct reg_default tps65132_reg_defaults[] = {
+	{ TPS65132_REG_VPOS, 0x14 },
+	{ TPS65132_REG_VNEG, 0x14 },
+	{ TPS65132_REG_APPS_DISP_DISN, 0x00 },
+	{ TPS65132_REG_CONTROL, 0x43 },
+};
+
 static const struct regmap_config tps65132_regmap_config = {
 	.reg_bits	= 8,
 	.val_bits	= 8,
 	.max_register	= TPS65132_REG_CONTROL,
-	.cache_type	= REGCACHE_NONE,
+	.cache_type	= REGCACHE_MAPLE,
+	.reg_defaults	= tps65132_reg_defaults,
+	.num_reg_defaults = ARRAY_SIZE(tps65132_reg_defaults),
 	.rd_table	= &tps65132_no_reg_table,
 	.wr_table	= &tps65132_no_reg_table,
 };
@@ -243,6 +260,7 @@ static int tps65132_probe(struct i2c_client *client)
 
 	i2c_set_clientdata(client, tps);
 	tps->dev = dev;
+	tps->rmap = rmap;
 
 	for (id = 0; id < TPS65132_MAX_REGULATORS; ++id) {
 		config.regmap = rmap;
@@ -258,17 +276,26 @@ static int tps65132_probe(struct i2c_client *client)
 			return ret;
 		}
 	}
+
+	dev_info(dev, "TPS65132 / OCP2130 / SM5109 bias regulators successfully probed\n");
+
 	return 0;
 }
 
 static const struct i2c_device_id tps65132_id[] = {
 	{ .name = "tps65132" },
+	{ .name = "ocp2130" },
+	{ .name = "sm5109" },
 	{ }
 };
 MODULE_DEVICE_TABLE(i2c, tps65132_id);
 
 static const struct of_device_id __maybe_unused tps65132_of_match[] = {
 	{ .compatible = "ti,tps65132" },
+	{ .compatible = "orient-chip,ocp2130" },
+	{ .compatible = "siliconmitus,sm5109" },
+	{ .compatible = "LCD_BIAS_OCP2130" },
+	{ .compatible = "LCD_BIAS_SM5109" },
 	{},
 };
 MODULE_DEVICE_TABLE(of, tps65132_of_match);
