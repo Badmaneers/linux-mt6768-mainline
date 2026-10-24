@@ -399,6 +399,8 @@ EXPORT_SYMBOL_NS_GPL(dma_heap_add, "DMA_BUF_HEAP");
 
 static char *dma_heap_devnode(const struct device *dev, umode_t *mode)
 {
+	if (mode)
+		*mode = 0666;
 	return kasprintf(GFP_KERNEL, "dma_heap/%s", dev_name(dev));
 }
 
