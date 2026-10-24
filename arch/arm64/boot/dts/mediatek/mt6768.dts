@@ -19,8 +19,6 @@
 	aliases {
 		serial0 = &uart0;
 		serial1 = &uart1;
-		display0 = &framebuffer0;
-		framebuffer0 = &framebuffer0;
 	};
 
 	chosen: chosen {
@@ -30,16 +28,6 @@
 		stdout-path = "serial0:921600n8";
 		bootargs = "bootopt=64S3,32N2,64N2 earlycon earlycon=mtk8250,mmio32,0x11002000 keep_bootcon console=ttyS0,921600n8 console=tty0 clk_ignore_unused pd_ignore_unused regulator_ignore_unused androidboot.selinux=permissive selinux=1 enforcing=0 root=/dev/ram loop.max_part=7 ramoops.mem_address=0x4d010000 ramoops.mem_size=0x000e0000 ramoops.console_size=0x00040000 ramoops.record_size=0x00010000 ramoops.pmsg_size=0x00010000 ramoops.dump_oops=1";
 		kaslr-seed = <0 0>;
-
-		framebuffer0: framebuffer@78e50000 {
-			compatible = "simple-framebuffer";
-			reg = <0 0x78e50000 0 0x00fb0000>;
-			width = <720>;
-			height = <1600>;
-			stride = <(720 * 4)>;
-			format = "a8r8g8b8";
-			status = "okay";
-		};
 	};
 
 	memory@40000000 {
