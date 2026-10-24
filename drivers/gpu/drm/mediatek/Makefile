@@ -17,7 +17,8 @@ mediatek-drm-y := mtk_crtc.o \
 		  mtk_ethdr.o \
 		  mtk_mdp_rdma.o \
 		  mtk_padding.o \
-		  mtk_plane.o
+		  mtk_plane.o \
+		  mtk_sync.o
 
 obj-$(CONFIG_DRM_MEDIATEK) += mediatek-drm.o
 

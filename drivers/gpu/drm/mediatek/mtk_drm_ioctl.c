@@ -18,12 +18,27 @@
 #include <drm/drm_file.h>
 #include <drm/drm_modes.h>
 #include <drm/drm_auth.h>
+#include <drm/drm_print.h>
 
+#include "mtk_crtc.h"
+#include "mtk_sync.h"
 #include "mtk_drm_ioctl.h"
 
-static atomic_t g_fence_seq = ATOMIC_INIT(0);
-static DECLARE_WAIT_QUEUE_HEAD(g_repaint_wq);
-static int g_repaint_condition;
+struct repaint_job_t {
+	struct list_head link;
+	unsigned int type;
+};
+
+static struct {
+	wait_queue_head_t wq;
+	struct list_head job_queue;
+	struct list_head job_pool;
+	spinlock_t lock;
+	bool initialized;
+} g_repaint_data = {
+	.job_queue = LIST_HEAD_INIT(g_repaint_data.job_queue),
+	.job_pool = LIST_HEAD_INIT(g_repaint_data.job_pool),
+};
 
 int mtk_drm_ioctl_get_all_connector_panel_info(struct drm_device *dev, void *data,
 					       struct drm_file *file_priv)
@@ -211,12 +226,42 @@ int mtk_drm_ioctl_set_ddp_mode(struct drm_device *dev, void *data,
 int mtk_drm_ioctl_hwvsync_on(struct drm_device *dev, void *data,
 			     struct drm_file *file_priv)
 {
+	unsigned int *crtc_id = data;
+	struct drm_crtc *crtc;
+
+	if (!dev || !crtc_id)
+		return -EINVAL;
+
+	crtc = drm_crtc_find(dev, file_priv, *crtc_id);
+	if (!crtc) {
+		drm_for_each_crtc(crtc, dev)
+			break;
+	}
+	if (!crtc)
+		return -ENOENT;
+
+	mtk_crtc_set_hwvsync_en(crtc, true);
 	return 0;
 }
 
 int mtk_drm_ioctl_kick_idle(struct drm_device *dev, void *data,
 			    struct drm_file *file_priv)
 {
+	unsigned int *crtc_id = data;
+	struct drm_crtc *crtc;
+
+	if (!dev || !crtc_id)
+		return -EINVAL;
+
+	crtc = drm_crtc_find(dev, file_priv, *crtc_id);
+	if (!crtc) {
+		drm_for_each_crtc(crtc, dev)
+			break;
+	}
+	if (!crtc)
+		return -ENOENT;
+
+	drm_trigger_repaint(DRM_REPAINT_FOR_IDLE, dev);
 	return 0;
 }
 
@@ -230,10 +275,17 @@ int mtk_drm_ioctl_get_display_caps(struct drm_device *dev, void *data,
 
 	memset(caps_info, 0, sizeof(*caps_info));
 	caps_info->hw_ver = 0x6768; /* MT6768 */
-	caps_info->disp_feature_flag = DRM_DISP_FEATURE_HRT |
-				       DRM_DISP_FEATURE_DISP_SELF_REFRESH |
-				       DRM_DISP_FEATURE_FBDC;
+	caps_info->disp_feature_flag = DRM_DISP_FEATURE_DISP_SELF_REFRESH |
+				       DRM_DISP_FEATURE_HRT |
+				       DRM_DISP_FEATURE_FBDC |
+				       DRM_DISP_FEATURE_VIRUTAL_DISPLAY |
+				       DRM_DISP_FEATURE_IOMMU |
+				       DRM_DISP_FEATURE_SF_PRESENT_FENCE;
+	caps_info->lcm_degree = 0;
 	caps_info->lcm_color_mode = 0; /* NATIVE */
+	caps_info->min_luminance = 0;
+	caps_info->average_luminance = 200;
+	caps_info->max_luminance = 450;
 	return 0;
 }
 
@@ -295,35 +347,60 @@ int mtk_drm_ioctl_crtc_getfence(struct drm_device *dev, void *data,
 				struct drm_file *file_priv)
 {
 	struct drm_mtk_fence *args = data;
-	int fd;
+	struct drm_crtc *crtc;
+	struct sync_timeline *timeline;
+	atomic_t *fence_idx_ptr;
+	struct fence_data fence;
+	int ret;
 
-	if (!args)
+	if (!dev || !args)
 		return -EINVAL;
 
-	fd = get_unused_fd_flags(O_CLOEXEC);
-	if (fd >= 0) {
-		struct dma_fence *fence = dma_fence_get_stub();
-		struct sync_file *sync_file = sync_file_create(fence);
+	crtc = drm_crtc_find(dev, file_priv, args->crtc_id);
+	if (!crtc) {
+		drm_for_each_crtc(crtc, dev)
+			break;
+	}
+	if (!crtc)
+		return -ENOENT;
 
-		dma_fence_put(fence);
-		if (sync_file) {
-			fd_install(fd, sync_file->file);
-			args->fence_fd = fd;
-		} else {
-			put_unused_fd(fd);
-			args->fence_fd = -1;
-		}
-	} else {
-		args->fence_fd = -1;
+	timeline = mtk_crtc_get_present_timeline(crtc);
+	fence_idx_ptr = mtk_crtc_get_present_fence_idx(crtc);
+	if (!timeline || !fence_idx_ptr)
+		return -EFAULT;
+
+	fence.fence = -1;
+	fence.value = atomic_inc_return(fence_idx_ptr);
+	snprintf(fence.name, sizeof(fence.name), "pres_fence_%d", fence.value);
+
+	ret = mtk_sync_fence_create(timeline, &fence);
+	if (ret) {
+		drm_err(dev, "create Fence Object failed: %d\n", ret);
+		return -EFAULT;
 	}
 
-	args->fence_idx = atomic_inc_return(&g_fence_seq);
+	args->fence_fd = fence.fence;
+	args->fence_idx = fence.value;
 	return 0;
 }
 
 int mtk_drm_ioctl_crtc_fence_release(struct drm_device *dev, void *data,
 				     struct drm_file *file_priv)
 {
+	struct drm_mtk_fence *args = data;
+	struct drm_crtc *crtc;
+
+	if (!dev || !args)
+		return -EINVAL;
+
+	crtc = drm_crtc_find(dev, file_priv, args->crtc_id);
+	if (!crtc) {
+		drm_for_each_crtc(crtc, dev)
+			break;
+	}
+	if (crtc)
+		mtk_crtc_release_present_fence(crtc);
+
 	return 0;
 }
 
@@ -335,23 +412,78 @@ int mtk_drm_ioctl_crtc_get_sf_fence(struct drm_device *dev, void *data,
 
 void drm_trigger_repaint(enum DRM_REPAINT_TYPE type, struct drm_device *drm_dev)
 {
-	g_repaint_condition = 1;
-	wake_up_interruptible(&g_repaint_wq);
+	struct repaint_job_t *repaint_job;
+	unsigned long flags;
+
+	if (type > DRM_WAIT_FOR_REPAINT && type < DRM_REPAINT_TYPE_NUM) {
+		if (!g_repaint_data.initialized) {
+			init_waitqueue_head(&g_repaint_data.wq);
+			spin_lock_init(&g_repaint_data.lock);
+			INIT_LIST_HEAD(&g_repaint_data.job_queue);
+			INIT_LIST_HEAD(&g_repaint_data.job_pool);
+			g_repaint_data.initialized = true;
+		}
+
+		spin_lock_irqsave(&g_repaint_data.lock, flags);
+		if (!list_empty(&g_repaint_data.job_pool)) {
+			repaint_job = list_first_entry(&g_repaint_data.job_pool,
+						       struct repaint_job_t, link);
+			list_del_init(&repaint_job->link);
+		} else {
+			repaint_job = kzalloc(sizeof(*repaint_job), GFP_ATOMIC);
+			if (!repaint_job) {
+				spin_unlock_irqrestore(&g_repaint_data.lock, flags);
+				return;
+			}
+			INIT_LIST_HEAD(&repaint_job->link);
+		}
+
+		repaint_job->type = (unsigned int)type;
+		list_add_tail(&repaint_job->link, &g_repaint_data.job_queue);
+		spin_unlock_irqrestore(&g_repaint_data.lock, flags);
+
+		wake_up_interruptible(&g_repaint_data.wq);
+	}
 }
 
 int mtk_drm_ioctl_wait_repaint(struct drm_device *dev, void *data,
 			       struct drm_file *file_priv)
 {
 	unsigned int *type = data;
+	struct repaint_job_t *repaint_job;
+	unsigned long flags;
 	int ret;
 
-	if (type)
-		*type = 0;
+	if (!type)
+		return -EINVAL;
 
-	ret = wait_event_interruptible(g_repaint_wq, g_repaint_condition != 0);
-	g_repaint_condition = 0;
+	if (!g_repaint_data.initialized) {
+		init_waitqueue_head(&g_repaint_data.wq);
+		spin_lock_init(&g_repaint_data.lock);
+		INIT_LIST_HEAD(&g_repaint_data.job_queue);
+		INIT_LIST_HEAD(&g_repaint_data.job_pool);
+		g_repaint_data.initialized = true;
+	}
 
-	return (ret == -ERESTARTSYS) ? -ERESTARTSYS : 0;
+	ret = wait_event_interruptible(g_repaint_data.wq,
+				       !list_empty(&g_repaint_data.job_queue));
+	if (ret >= 0) {
+		spin_lock_irqsave(&g_repaint_data.lock, flags);
+		if (!list_empty(&g_repaint_data.job_queue)) {
+			repaint_job = list_first_entry(&g_repaint_data.job_queue,
+						       struct repaint_job_t, link);
+			*type = repaint_job->type;
+			list_del_init(&repaint_job->link);
+			list_add_tail(&repaint_job->link, &g_repaint_data.job_pool);
+		} else {
+			*type = DRM_WAIT_FOR_REPAINT;
+		}
+		spin_unlock_irqrestore(&g_repaint_data.lock, flags);
+	} else {
+		*type = DRM_WAIT_FOR_REPAINT;
+	}
+
+	return 0;
 }
 
 int mtk_drm_ioctl_sec_hnd_to_gem_hnd(struct drm_device *dev, void *data,

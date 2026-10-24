@@ -25,5 +25,9 @@ void mtk_crtc_plane_disable(struct drm_crtc *crtc, struct drm_plane *plane);
 void mtk_crtc_async_update(struct drm_crtc *crtc, struct drm_plane *plane,
 			   struct drm_atomic_commit *plane_state);
 struct device *mtk_crtc_dma_dev_get(struct drm_crtc *crtc);
+struct sync_timeline *mtk_crtc_get_present_timeline(struct drm_crtc *crtc);
+atomic_t *mtk_crtc_get_present_fence_idx(struct drm_crtc *crtc);
+void mtk_crtc_set_hwvsync_en(struct drm_crtc *crtc, bool en);
+void mtk_crtc_release_present_fence(struct drm_crtc *crtc);
 
 #endif /* MTK_CRTC_H */

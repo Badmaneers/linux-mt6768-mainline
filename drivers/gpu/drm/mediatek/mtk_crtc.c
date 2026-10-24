@@ -24,6 +24,7 @@
 #include "mtk_ddp_comp.h"
 #include "mtk_drm_drv.h"
 #include "mtk_plane.h"
+#include "mtk_sync.h"
 
 /*
  * struct mtk_crtc - MediaTek specific crtc structure.
@@ -71,6 +72,10 @@ struct mtk_crtc {
 	/* lock for config_updating to cmd buffer */
 	spinlock_t			config_lock;
 
+	struct sync_timeline		*present_timeline;
+	atomic_t			present_fence_idx;
+	bool				hwvsync_en;
+
 	struct mtk_ddp_comp		*ddp_comp[];
 };
 
@@ -97,6 +102,14 @@ static void mtk_crtc_finish_page_flip(struct mtk_crtc *mtk_crtc)
 {
 	struct drm_crtc *crtc = &mtk_crtc->base;
 	unsigned long flags;
+
+	if (mtk_crtc->present_timeline) {
+		int target = atomic_read(&mtk_crtc->present_fence_idx);
+		int inc = target - mtk_crtc->present_timeline->value;
+
+		if (inc > 0)
+			mtk_sync_timeline_inc(mtk_crtc->present_timeline, inc, ktime_get());
+	}
 
 	if (mtk_crtc->event) {
 		spin_lock_irqsave(&crtc->dev->event_lock, flags);
@@ -147,6 +160,11 @@ static void mtk_crtc_destroy(struct drm_crtc *crtc)
 
 		comp = mtk_crtc->ddp_comp[i];
 		mtk_ddp_comp_unregister_vblank_cb(comp);
+	}
+
+	if (mtk_crtc->present_timeline) {
+		mtk_sync_timeline_destroy(mtk_crtc->present_timeline);
+		mtk_crtc->present_timeline = NULL;
 	}
 
 	drm_crtc_cleanup(crtc);
@@ -877,12 +895,18 @@ static void mtk_crtc_atomic_flush(struct drm_crtc *crtc,
 	struct mtk_crtc *mtk_crtc = to_mtk_crtc(crtc);
 	int i;
 
+	bool needs_vblank = !!mtk_crtc->event;
+
+	if (mtk_crtc->present_timeline &&
+	    atomic_read(&mtk_crtc->present_fence_idx) > mtk_crtc->present_timeline->value)
+		needs_vblank = true;
+
 	if (crtc->state->color_mgmt_changed)
 		for (i = 0; i < mtk_crtc->ddp_comp_nr; i++) {
 			mtk_ddp_gamma_set(mtk_crtc->ddp_comp[i], crtc->state);
 			mtk_ddp_ctm_set(mtk_crtc->ddp_comp[i], crtc->state);
 		}
-	mtk_crtc_update_config(mtk_crtc, !!mtk_crtc->event);
+	mtk_crtc_update_config(mtk_crtc, needs_vblank);
 }
 
 static const struct drm_crtc_funcs mtk_crtc_funcs = {
@@ -1189,5 +1213,62 @@ int mtk_crtc_create(struct drm_device *drm_dev, const unsigned int *path,
 		mtk_crtc->ddp_comp_nr++;
 	}
 
+	{
+		char timeline_name[32];
+
+		snprintf(timeline_name, sizeof(timeline_name), "mtk-crtc%d-present",
+			 drm_crtc_index(&mtk_crtc->base));
+		mtk_crtc->present_timeline = mtk_sync_timeline_create(timeline_name);
+		atomic_set(&mtk_crtc->present_fence_idx, 0);
+		mtk_crtc->hwvsync_en = false;
+	}
+
 	return 0;
 }
+
+struct sync_timeline *mtk_crtc_get_present_timeline(struct drm_crtc *crtc)
+{
+	struct mtk_crtc *mtk_crtc;
+
+	if (!crtc)
+		return NULL;
+	mtk_crtc = to_mtk_crtc(crtc);
+	return mtk_crtc->present_timeline;
+}
+
+atomic_t *mtk_crtc_get_present_fence_idx(struct drm_crtc *crtc)
+{
+	struct mtk_crtc *mtk_crtc;
+
+	if (!crtc)
+		return NULL;
+	mtk_crtc = to_mtk_crtc(crtc);
+	return &mtk_crtc->present_fence_idx;
+}
+
+void mtk_crtc_set_hwvsync_en(struct drm_crtc *crtc, bool en)
+{
+	struct mtk_crtc *mtk_crtc;
+
+	if (!crtc)
+		return;
+	mtk_crtc = to_mtk_crtc(crtc);
+	mtk_crtc->hwvsync_en = en;
+}
+
+void mtk_crtc_release_present_fence(struct drm_crtc *crtc)
+{
+	struct mtk_crtc *mtk_crtc;
+
+	if (!crtc)
+		return;
+	mtk_crtc = to_mtk_crtc(crtc);
+	if (mtk_crtc && mtk_crtc->present_timeline) {
+		int target = atomic_read(&mtk_crtc->present_fence_idx);
+		int inc = target - mtk_crtc->present_timeline->value;
+
+		if (inc > 0)
+			mtk_sync_timeline_inc(mtk_crtc->present_timeline, inc, ktime_get());
+	}
+}
+
