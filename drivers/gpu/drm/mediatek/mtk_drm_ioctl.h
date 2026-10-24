@@ -24,6 +24,8 @@ int mtk_drm_ioctl_set_ddp_mode(struct drm_device *dev, void *data,
 			       struct drm_file *file_priv);
 int mtk_drm_ioctl_hwvsync_on(struct drm_device *dev, void *data,
 			     struct drm_file *file_priv);
+int mtk_drm_ioctl_kick_idle(struct drm_device *dev, void *data,
+			    struct drm_file *file_priv);
 
 #define MTK_NUM_IOCTLS 0x60
 

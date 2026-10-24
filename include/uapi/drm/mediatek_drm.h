@@ -18,6 +18,7 @@
 #define DRM_MTK_GET_SESSION_INFO	0x0A
 #define DRM_MTK_HWVSYNC_ON		0x16
 #define DRM_MTK_GET_PANELS_INFO		0x5A
+#define DRM_MTK_KICK_IDLE		0x5B
 
 #define GET_PANELS_STR_LEN		64
 #define MAX_CRTC_CNT			10
@@ -64,5 +65,7 @@ struct mtk_drm_panels_info {
 		DRM_MTK_HWVSYNC_ON, unsigned int)
 #define DRM_IOCTL_MTK_GET_PANELS_INFO	DRM_IOWR(DRM_COMMAND_BASE + \
 		DRM_MTK_GET_PANELS_INFO, struct mtk_drm_panels_info)
+#define DRM_IOCTL_MTK_KICK_IDLE		DRM_IOWR(DRM_COMMAND_BASE + \
+		DRM_MTK_KICK_IDLE, unsigned int)
 
 #endif /* _UAPI_MEDIATEK_DRM_H */

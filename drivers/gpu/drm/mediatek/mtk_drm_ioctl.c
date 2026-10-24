@@ -205,6 +205,12 @@ int mtk_drm_ioctl_hwvsync_on(struct drm_device *dev, void *data,
 	return 0;
 }
 
+int mtk_drm_ioctl_kick_idle(struct drm_device *dev, void *data,
+			    struct drm_file *file_priv)
+{
+	return 0;
+}
+
 const struct drm_ioctl_desc mtk_ioctls[MTK_NUM_IOCTLS] = {
 	DRM_IOCTL_DEF_DRV(MTK_SESSION_CREATE, mtk_drm_ioctl_session_create, DRM_RENDER_ALLOW),
 	DRM_IOCTL_DEF_DRV(MTK_SESSION_DESTROY, mtk_drm_ioctl_session_destroy, DRM_RENDER_ALLOW),
@@ -212,4 +218,5 @@ const struct drm_ioctl_desc mtk_ioctls[MTK_NUM_IOCTLS] = {
 	DRM_IOCTL_DEF_DRV(MTK_GET_SESSION_INFO, mtk_drm_ioctl_get_session_info, DRM_RENDER_ALLOW),
 	DRM_IOCTL_DEF_DRV(MTK_HWVSYNC_ON, mtk_drm_ioctl_hwvsync_on, DRM_RENDER_ALLOW),
 	DRM_IOCTL_DEF_DRV(MTK_GET_PANELS_INFO, mtk_drm_ioctl_get_all_connector_panel_info, DRM_RENDER_ALLOW),
+	DRM_IOCTL_DEF_DRV(MTK_KICK_IDLE, mtk_drm_ioctl_kick_idle, DRM_RENDER_ALLOW),
 };
