@@ -626,11 +626,28 @@ static s32 mtk_dsi_wait_for_irq_done(struct mtk_dsi *dsi, u32 irq_flag,
 	s32 ret = 0;
 	unsigned long jiffies = msecs_to_jiffies(timeout);
 	struct drm_device *drm = dsi->bridge.dev;
+	u32 val;
+
+	/* Fast poll first before putting thread to sleep */
+	if (!readl_poll_timeout_atomic(dsi->regs + DSI_INTSTA, val, (val & irq_flag), 2, 500)) {
+		mtk_dsi_mask(dsi, DSI_RACK, RACK, RACK);
+		mtk_dsi_mask(dsi, DSI_INTSTA, val & irq_flag, 0);
+		mtk_dsi_irq_data_set(dsi, val & irq_flag);
+		return 1;
+	}
 
 	ret = wait_event_interruptible_timeout(dsi->irq_wait_queue,
 					       dsi->irq_data & irq_flag,
 					       jiffies);
 	if (ret == 0) {
+		val = readl(dsi->regs + DSI_INTSTA);
+		if (val & irq_flag) {
+			mtk_dsi_mask(dsi, DSI_RACK, RACK, RACK);
+			mtk_dsi_mask(dsi, DSI_INTSTA, val & irq_flag, 0);
+			mtk_dsi_irq_data_set(dsi, val & irq_flag);
+			return 1;
+		}
+
 		drm_warn(drm, "Wait DSI IRQ(0x%08x) Timeout\n", irq_flag);
 
 		mtk_dsi_enable(dsi);
@@ -1007,8 +1024,22 @@ static int mtk_dsi_host_attach(struct mipi_dsi_host *host,
 
 		/* Old devicetree has only one endpoint */
 		dsi->next_bridge = devm_drm_of_get_bridge(dev, dev->of_node, 0, 0);
-		if (IS_ERR(dsi->next_bridge))
-			return PTR_ERR(dsi->next_bridge);
+		if (IS_ERR(dsi->next_bridge)) {
+			struct drm_panel *panel;
+
+			ret = PTR_ERR(dsi->next_bridge);
+			if (ret == -EPROBE_DEFER)
+				return ret;
+
+			panel = of_drm_find_panel(device->dev.of_node);
+			if (!IS_ERR(panel)) {
+				dsi->next_bridge = devm_drm_panel_bridge_add(dev, panel);
+				if (IS_ERR(dsi->next_bridge))
+					return PTR_ERR(dsi->next_bridge);
+			} else {
+				return ret;
+			}
+		}
 	}
 
 	drm_bridge_add(&dsi->bridge);
@@ -1314,6 +1345,7 @@ static const struct mtk_dsi_driver_data mt8188_dsi_driver_data = {
 
 static const struct of_device_id mtk_dsi_of_match[] = {
 	{ .compatible = "mediatek,mt2701-dsi", .data = &mt2701_dsi_driver_data },
+	{ .compatible = "mediatek,mt6768-dsi", .data = &mt8183_dsi_driver_data },
 	{ .compatible = "mediatek,mt8167-dsi", .data = &mt2701_dsi_driver_data },
 	{ .compatible = "mediatek,mt8173-dsi", .data = &mt8173_dsi_driver_data },
 	{ .compatible = "mediatek,mt8183-dsi", .data = &mt8183_dsi_driver_data },
