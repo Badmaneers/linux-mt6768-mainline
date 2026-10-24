@@ -77,6 +77,7 @@ static struct sync_pt *mtk_sync_pt_create(struct sync_timeline *obj,
 					  unsigned int value)
 {
 	struct sync_pt *pt;
+	unsigned long flags;
 
 	pt = kzalloc(sizeof(*pt), GFP_KERNEL);
 	if (!pt)
@@ -88,7 +89,7 @@ static struct sync_pt *mtk_sync_pt_create(struct sync_timeline *obj,
 		   obj->context, value);
 	INIT_LIST_HEAD(&pt->link);
 
-	spin_lock_irq(&obj->lock);
+	spin_lock_irqsave(&obj->lock, flags);
 	if (!dma_fence_is_signaled_locked(&pt->base)) {
 		struct rb_node **p = &obj->pt_tree.rb_node;
 		struct rb_node *parent = NULL;
@@ -124,7 +125,7 @@ static struct sync_pt *mtk_sync_pt_create(struct sync_timeline *obj,
 			       : &obj->pt_list);
 	}
 unlock:
-	spin_unlock_irq(&obj->lock);
+	spin_unlock_irqrestore(&obj->lock, flags);
 
 	return pt;
 }
@@ -190,8 +191,9 @@ static void mtk_sync_timeline_signal(struct sync_timeline *obj,
 				     unsigned int inc, ktime_t time)
 {
 	struct sync_pt *pt, *next;
+	unsigned long flags;
 
-	spin_lock_irq(&obj->lock);
+	spin_lock_irqsave(&obj->lock, flags);
 
 	obj->value += inc;
 
@@ -208,7 +210,7 @@ static void mtk_sync_timeline_signal(struct sync_timeline *obj,
 			dma_fence_signal_locked(&pt->base);
 	}
 
-	spin_unlock_irq(&obj->lock);
+	spin_unlock_irqrestore(&obj->lock, flags);
 }
 
 struct sync_timeline *mtk_sync_timeline_create(const char *name)
