@@ -31,6 +31,7 @@
 #include "mtk_ddp_comp.h"
 #include "mtk_disp_drv.h"
 #include "mtk_drm_drv.h"
+#include "mtk_drm_ioctl.h"
 
 #define DRIVER_NAME "mediatek"
 #define DRIVER_DESC "Mediatek SoC DRM"
@@ -627,6 +628,8 @@ static const struct drm_driver mtk_drm_driver = {
 	DRM_FBDEV_DMA_DRIVER_OPS,
 
 	.fops = &mtk_drm_fops,
+	.ioctls = mtk_ioctls,
+	.num_ioctls = MTK_NUM_IOCTLS,
 
 	.name = DRIVER_NAME,
 	.desc = DRIVER_DESC,
