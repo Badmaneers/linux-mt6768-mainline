@@ -376,6 +376,7 @@ struct mtk_mutex_data {
 	const u16 mutex_mod1_reg;
 	const u16 mutex_sof_reg;
 	const bool no_clk;
+	const bool no_mutex_lock;
 };
 
 struct mtk_mutex_ctx {
@@ -422,6 +423,7 @@ static const u8 mt6768_mutex_mod[DDP_COMPONENT_ID_MAX] = {
 	[DDP_COMPONENT_CCORR] = MT6768_MUTEX_MOD_DISP_CCORR0,
 	[DDP_COMPONENT_COLOR0] = MT6768_MUTEX_MOD_DISP_COLOR0,
 	[DDP_COMPONENT_DITHER0] = MT6768_MUTEX_MOD_DISP_DITHER0,
+	[DDP_COMPONENT_DSI0] = MT6768_MUTEX_MOD_DISP_DSI0,
 	[DDP_COMPONENT_GAMMA] = MT6768_MUTEX_MOD_DISP_GAMMA0,
 	[DDP_COMPONENT_OVL0] = MT6768_MUTEX_MOD_DISP_OVL0,
 	[DDP_COMPONENT_OVL_2L0] = MT6768_MUTEX_MOD_DISP_OVL0_2L,
@@ -793,9 +795,11 @@ static const struct mtk_mutex_data mt6768_mutex_driver_data = {
 	.mutex_mod = mt6768_mutex_mod,
 	.mutex_sof = mt8183_mutex_sof,
 	.mutex_mod_reg = MT8183_MUTEX0_MOD0,
+	.mutex_mod1_reg = MT8183_MUTEX0_MOD1,
 	.mutex_sof_reg = MT8183_MUTEX0_SOF0,
 	.mutex_table_mod = mt6768_mutex_table_mod,
 	.no_clk = true,
+	.no_mutex_lock = true,
 };
 
 static const struct mtk_mutex_data mt6795_mutex_driver_data = {
@@ -899,8 +903,15 @@ static const struct mtk_mutex_data mt8365_mutex_driver_data = {
 
 struct mtk_mutex *mtk_mutex_get(struct device *dev)
 {
-	struct mtk_mutex_ctx *mtx = dev_get_drvdata(dev);
+	struct mtk_mutex_ctx *mtx;
 	int i;
+
+	if (!dev)
+		return ERR_PTR(-EINVAL);
+
+	mtx = dev_get_drvdata(dev);
+	if (!mtx)
+		return ERR_PTR(-EPROBE_DEFER);
 
 	for (i = 0; i < MTK_MUTEX_MAX_HANDLES; i++)
 		if (!mtx->mutex[i].claimed) {
@@ -984,6 +995,14 @@ void mtk_mutex_add_comp(struct mtk_mutex *mutex,
 		return;
 	}
 
+	if (mtx->data->mutex_mod && mtx->data->mutex_mod[id]) {
+		offset = DISP_REG_MUTEX_MOD(mtx, mtx->data->mutex_mod[id], mutex->id);
+		mod_id = mtx->data->mutex_mod[id] % 32;
+		reg = readl_relaxed(mtx->regs + offset);
+		reg |= BIT(mod_id);
+		writel_relaxed(reg, mtx->regs + offset);
+	}
+
 	writel_relaxed(mtx->data->mutex_sof[sof_id],
 		       mtx->regs +
 		       DISP_REG_MUTEX_SOF(mtx->data->mutex_sof_reg, mutex->id));
@@ -1010,6 +1029,14 @@ void mtk_mutex_remove_comp(struct mtk_mutex *mutex,
 	case DDP_COMPONENT_DPI1:
 	case DDP_COMPONENT_DP_INTF0:
 	case DDP_COMPONENT_DP_INTF1:
+		if (mtx->data->mutex_mod && mtx->data->mutex_mod[id]) {
+			offset = DISP_REG_MUTEX_MOD(mtx, mtx->data->mutex_mod[id], mutex->id);
+			mod_id = mtx->data->mutex_mod[id] % 32;
+			reg = readl_relaxed(mtx->regs + offset);
+			reg &= ~BIT(mod_id);
+			writel_relaxed(reg, mtx->regs + offset);
+		}
+
 		writel_relaxed(MUTEX_SOF_SINGLE_MODE,
 			       mtx->regs +
 			       DISP_REG_MUTEX_SOF(mtx->data->mutex_sof_reg,
@@ -1033,6 +1060,7 @@ void mtk_mutex_enable(struct mtk_mutex *mutex)
 
 	WARN_ON(&mtx->mutex[mutex->id] != mutex);
 
+	writel(0, mtx->regs + DISP_REG_MUTEX_EN(mutex->id));
 	writel(1, mtx->regs + DISP_REG_MUTEX_EN(mutex->id));
 }
 EXPORT_SYMBOL_GPL(mtk_mutex_enable);
@@ -1074,6 +1102,9 @@ void mtk_mutex_acquire(struct mtk_mutex *mutex)
 						 mutex[mutex->id]);
 	u32 tmp;
 
+	if (mtx->data->no_mutex_lock)
+		return;
+
 	writel(1, mtx->regs + DISP_REG_MUTEX_EN(mutex->id));
 	writel(1, mtx->regs + DISP_REG_MUTEX(mutex->id));
 	if (readl_poll_timeout_atomic(mtx->regs + DISP_REG_MUTEX(mutex->id),
@@ -1086,6 +1117,9 @@ void mtk_mutex_release(struct mtk_mutex *mutex)
 {
 	struct mtk_mutex_ctx *mtx = container_of(mutex, struct mtk_mutex_ctx,
 						 mutex[mutex->id]);
+
+	if (mtx->data->no_mutex_lock)
+		return;
 
 	writel(0, mtx->regs + DISP_REG_MUTEX(mutex->id));
 }
