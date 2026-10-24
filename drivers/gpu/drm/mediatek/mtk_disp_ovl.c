@@ -40,6 +40,7 @@
 #define OVL_PITCH_MSB_2ND_SUBBUF			BIT(16)
 #define DISP_REG_OVL_PITCH(n)			(0x0044 + 0x20 * (n))
 #define OVL_CONST_BLEND					BIT(28)
+#define DISP_REG_OVL_L0_CLR(n)			(0x025c + 0x4 * (n))
 #define DISP_REG_OVL_RDMA_CTRL(n)		(0x00c0 + 0x20 * (n))
 #define DISP_REG_OVL_RDMA_GMC(n)		(0x00c8 + 0x20 * (n))
 #define DISP_REG_OVL_ADDR_MT2701		0x0040
@@ -534,8 +535,28 @@ void mtk_ovl_layer_config(struct device *dev, unsigned int idx,
 	unsigned int ignore_pixel_alpha = 0;
 	unsigned int con;
 
-	if (!pending->enable || pending->format == DRM_FORMAT_RGB332) {
+	if (!pending->enable) {
 		mtk_ovl_layer_off(dev, idx, cmdq_pkt);
+		return;
+	}
+
+	if (pending->format == DRM_FORMAT_RGB332) {
+		/*
+		 * MediaTek HWC dummy FB: Keep layer enabled in constant color blend mode
+		 * without DMA memory access, so OVL feeds black pixels and doesn't underflow.
+		 */
+		mtk_ddp_write_relaxed(cmdq_pkt, OVL_CONST_BLEND | 0xff,
+				      &ovl->cmdq_reg, ovl->regs, DISP_REG_OVL_CON(idx));
+		mtk_ddp_write_relaxed(cmdq_pkt, pitch_lsb | OVL_CONST_BLEND,
+				      &ovl->cmdq_reg, ovl->regs, DISP_REG_OVL_PITCH(idx));
+		mtk_ddp_write_relaxed(cmdq_pkt, src_size,
+				      &ovl->cmdq_reg, ovl->regs, DISP_REG_OVL_SRC_SIZE(idx));
+		mtk_ddp_write_relaxed(cmdq_pkt, offset,
+				      &ovl->cmdq_reg, ovl->regs, DISP_REG_OVL_OFFSET(idx));
+		mtk_ddp_write_relaxed(cmdq_pkt, 0xff000000,
+				      &ovl->cmdq_reg, ovl->regs, DISP_REG_OVL_L0_CLR(idx));
+		mtk_ddp_write_mask(cmdq_pkt, BIT(idx), &ovl->cmdq_reg, ovl->regs,
+				   DISP_REG_OVL_SRC_CON, BIT(idx));
 		return;
 	}
 
