@@ -134,9 +134,14 @@ static void mtk_drm_finish_page_flip(struct mtk_crtc *mtk_crtc)
 #endif
 
 	spin_lock_irqsave(&mtk_crtc->config_lock, flags);
-	if (!mtk_crtc->config_updating && mtk_crtc->pending_needs_vblank) {
-		mtk_crtc_finish_page_flip(mtk_crtc);
-		mtk_crtc->pending_needs_vblank = false;
+	if (!mtk_crtc->config_updating) {
+		bool has_pending_pf = mtk_crtc->present_timeline &&
+			(atomic_read(&mtk_crtc->present_fence_idx) > mtk_crtc->present_timeline->value);
+
+		if (mtk_crtc->pending_needs_vblank || has_pending_pf) {
+			mtk_crtc_finish_page_flip(mtk_crtc);
+			mtk_crtc->pending_needs_vblank = false;
+		}
 	}
 	spin_unlock_irqrestore(&mtk_crtc->config_lock, flags);
 }
@@ -820,6 +825,7 @@ static void mtk_crtc_atomic_enable(struct drm_crtc *crtc,
 	}
 
 	drm_crtc_vblank_on(crtc);
+	WARN_ON(drm_crtc_vblank_get(crtc) != 0);
 	mtk_crtc->enabled = true;
 }
 
@@ -857,6 +863,7 @@ static void mtk_crtc_atomic_disable(struct drm_crtc *crtc,
 	/* Wait for planes to be disabled */
 	drm_crtc_wait_one_vblank(crtc);
 
+	drm_crtc_vblank_put(crtc);
 	drm_crtc_vblank_off(crtc);
 	mtk_crtc_ddp_hw_fini(mtk_crtc);
 	mtk_ddp_comp_power_off(comp);
