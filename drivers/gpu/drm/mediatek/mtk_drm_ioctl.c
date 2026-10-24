@@ -266,9 +266,18 @@ int mtk_drm_ioctl_layering_rule(struct drm_device *dev, void *data,
 				continue;
 
 			if (copy_from_user(cfg, info->input_config[i], sz) == 0) {
+				if (info->layer_num[i] > 4) {
+					info->gles_head[i] = 3;
+					info->gles_tail[i] = info->layer_num[i] - 1;
+				}
 				for (l = 0; l < info->layer_num[i]; l++) {
-					cfg[l].ovl_id = l;
-					cfg[l].layer_caps |= MTK_LAYERING_OVL_ONLY;
+					if (info->layer_num[i] > 4 && l >= 3) {
+						cfg[l].ovl_id = -1;
+						cfg[l].layer_caps = 0;
+					} else {
+						cfg[l].ovl_id = l;
+						cfg[l].layer_caps |= MTK_LAYERING_OVL_ONLY;
+					}
 				}
 				if (copy_to_user(info->input_config[i], cfg, sz)) {
 					vfree(cfg);
@@ -322,6 +331,12 @@ int mtk_drm_ioctl_crtc_get_sf_fence(struct drm_device *dev, void *data,
 				    struct drm_file *file_priv)
 {
 	return mtk_drm_ioctl_crtc_getfence(dev, data, file_priv);
+}
+
+void drm_trigger_repaint(enum DRM_REPAINT_TYPE type, struct drm_device *drm_dev)
+{
+	g_repaint_condition = 1;
+	wake_up_interruptible(&g_repaint_wq);
 }
 
 int mtk_drm_ioctl_wait_repaint(struct drm_device *dev, void *data,

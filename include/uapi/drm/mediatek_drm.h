@@ -138,6 +138,16 @@ struct drm_mtk_fence {
 	__u32 fence_idx;
 };
 
+enum DRM_REPAINT_TYPE {
+	DRM_WAIT_FOR_REPAINT,
+	DRM_REPAINT_FOR_ANTI_LATENCY,
+	DRM_REPAINT_FOR_SWITCH_DECOUPLE,
+	DRM_REPAINT_FOR_SWITCH_DECOUPLE_MIRROR,
+	DRM_REPAINT_FOR_IDLE,
+	DRM_REPAINT_FOR_MML,
+	DRM_REPAINT_TYPE_NUM,
+};
+
 struct drm_mtk_sec_gem_hnd {
 	__u32 sec_hnd;
 	__u32 gem_hnd;

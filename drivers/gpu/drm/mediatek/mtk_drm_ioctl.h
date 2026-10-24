@@ -64,6 +64,7 @@ int mtk_drm_ioctl_get_all_connector_panel_info(struct drm_device *dev, void *dat
 					       struct drm_file *file_priv);
 int mtk_drm_ioctl_kick_idle(struct drm_device *dev, void *data,
 			    struct drm_file *file_priv);
+void drm_trigger_repaint(enum DRM_REPAINT_TYPE type, struct drm_device *drm_dev);
 
 #define MTK_NUM_IOCTLS 0x60
 

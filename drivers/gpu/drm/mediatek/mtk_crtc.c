@@ -109,12 +109,14 @@ static void mtk_crtc_finish_page_flip(struct mtk_crtc *mtk_crtc)
 
 static void mtk_drm_finish_page_flip(struct mtk_crtc *mtk_crtc)
 {
+	struct drm_crtc *crtc = &mtk_crtc->base;
+	struct mtk_drm_private *priv = crtc->dev->dev_private;
 	unsigned long flags;
 
 	drm_crtc_handle_vblank(&mtk_crtc->base);
 
 #if IS_REACHABLE(CONFIG_MTK_CMDQ)
-	if (mtk_crtc->cmdq_client.chan)
+	if (!priv->data->shadow_register && mtk_crtc->cmdq_client.chan)
 		return;
 #endif
 
@@ -602,7 +604,7 @@ static void mtk_crtc_update_config(struct mtk_crtc *mtk_crtc, bool needs_vblank)
 		mtk_mutex_enable(mtk_crtc->mutex);
 	}
 #if IS_REACHABLE(CONFIG_MTK_CMDQ)
-	if (mtk_crtc->cmdq_client.chan) {
+	else if (mtk_crtc->cmdq_client.chan) {
 		mbox_flush(mtk_crtc->cmdq_client.chan, 2000);
 		cmdq_handle->cmd_buf_size = 0;
 		cmdq_pkt_clear_event(cmdq_handle, mtk_crtc->cmdq_event);
@@ -667,10 +669,9 @@ static void mtk_crtc_ddp_irq(void *data)
 static int mtk_crtc_enable_vblank(struct drm_crtc *crtc)
 {
 	struct mtk_crtc *mtk_crtc = to_mtk_crtc(crtc);
-	int i;
+	struct mtk_ddp_comp *comp = mtk_crtc->ddp_comp[0];
 
-	for (i = 0; i < mtk_crtc->ddp_comp_nr; i++)
-		mtk_ddp_comp_enable_vblank(mtk_crtc->ddp_comp[i]);
+	mtk_ddp_comp_enable_vblank(comp);
 
 	return 0;
 }
@@ -678,10 +679,9 @@ static int mtk_crtc_enable_vblank(struct drm_crtc *crtc)
 static void mtk_crtc_disable_vblank(struct drm_crtc *crtc)
 {
 	struct mtk_crtc *mtk_crtc = to_mtk_crtc(crtc);
-	int i;
+	struct mtk_ddp_comp *comp = mtk_crtc->ddp_comp[0];
 
-	for (i = 0; i < mtk_crtc->ddp_comp_nr; i++)
-		mtk_ddp_comp_disable_vblank(mtk_crtc->ddp_comp[i]);
+	mtk_ddp_comp_disable_vblank(comp);
 }
 
 static void mtk_crtc_update_output(struct drm_crtc *crtc,
@@ -1123,43 +1123,45 @@ int mtk_crtc_create(struct drm_device *drm_dev, const unsigned int *path,
 	spin_lock_init(&mtk_crtc->config_lock);
 
 #if IS_REACHABLE(CONFIG_MTK_CMDQ)
-	i = priv->mbox_index++;
-	mtk_crtc->cmdq_client.client.dev = mtk_crtc->mmsys_dev;
-	mtk_crtc->cmdq_client.client.tx_block = false;
-	mtk_crtc->cmdq_client.client.knows_txdone = true;
-	mtk_crtc->cmdq_client.client.rx_callback = ddp_cmdq_cb;
-	mtk_crtc->cmdq_client.chan =
-			mbox_request_channel(&mtk_crtc->cmdq_client.client, i);
-	if (IS_ERR(mtk_crtc->cmdq_client.chan)) {
-		dev_dbg(dev, "mtk_crtc %d failed to create mailbox client, writing register by CPU now\n",
-			drm_crtc_index(&mtk_crtc->base));
-		mtk_crtc->cmdq_client.chan = NULL;
-	}
-
-	if (mtk_crtc->cmdq_client.chan) {
-		ret = of_property_read_u32_index(priv->mutex_node,
-						 "mediatek,gce-events",
-						 i,
-						 &mtk_crtc->cmdq_event);
-		if (ret) {
-			dev_dbg(dev, "mtk_crtc %d failed to get mediatek,gce-events property\n",
+	if (!priv->data->shadow_register) {
+		i = priv->mbox_index++;
+		mtk_crtc->cmdq_client.client.dev = mtk_crtc->mmsys_dev;
+		mtk_crtc->cmdq_client.client.tx_block = false;
+		mtk_crtc->cmdq_client.client.knows_txdone = true;
+		mtk_crtc->cmdq_client.client.rx_callback = ddp_cmdq_cb;
+		mtk_crtc->cmdq_client.chan =
+				mbox_request_channel(&mtk_crtc->cmdq_client.client, i);
+		if (IS_ERR(mtk_crtc->cmdq_client.chan)) {
+			dev_dbg(dev, "mtk_crtc %d failed to create mailbox client, writing register by CPU now\n",
 				drm_crtc_index(&mtk_crtc->base));
-			mbox_free_channel(mtk_crtc->cmdq_client.chan);
 			mtk_crtc->cmdq_client.chan = NULL;
-		} else {
-			ret = cmdq_pkt_create(&mtk_crtc->cmdq_client,
-					      &mtk_crtc->cmdq_handle,
-					      PAGE_SIZE);
+		}
+
+		if (mtk_crtc->cmdq_client.chan) {
+			ret = of_property_read_u32_index(priv->mutex_node,
+							 "mediatek,gce-events",
+							 i,
+							 &mtk_crtc->cmdq_event);
 			if (ret) {
-				dev_dbg(dev, "mtk_crtc %d failed to create cmdq packet\n",
+				dev_dbg(dev, "mtk_crtc %d failed to get mediatek,gce-events property\n",
 					drm_crtc_index(&mtk_crtc->base));
 				mbox_free_channel(mtk_crtc->cmdq_client.chan);
 				mtk_crtc->cmdq_client.chan = NULL;
+			} else {
+				ret = cmdq_pkt_create(&mtk_crtc->cmdq_client,
+						      &mtk_crtc->cmdq_handle,
+						      PAGE_SIZE);
+				if (ret) {
+					dev_dbg(dev, "mtk_crtc %d failed to create cmdq packet\n",
+						drm_crtc_index(&mtk_crtc->base));
+					mbox_free_channel(mtk_crtc->cmdq_client.chan);
+					mtk_crtc->cmdq_client.chan = NULL;
+				}
 			}
-		}
 
-		/* for sending blocking cmd in crtc disable */
-		init_waitqueue_head(&mtk_crtc->cb_blocking_queue);
+			/* for sending blocking cmd in crtc disable */
+			init_waitqueue_head(&mtk_crtc->cb_blocking_queue);
+		}
 	}
 #endif
 
