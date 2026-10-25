@@ -35,9 +35,33 @@ struct mtk_plane_pending_state {
 	enum drm_color_encoding		color_encoding;
 };
 
+enum mtk_plane_prop_id {
+	PLANE_PROP_NEXT_BUFF_IDX,
+	PLANE_PROP_LYE_BLOB_IDX,
+	PLANE_PROP_DATASPACE,
+	PLANE_PROP_VPITCH,
+	PLANE_PROP_COMPRESS,
+	PLANE_PROP_PLANE_ALPHA,
+	PLANE_PROP_ALPHA_CON,
+	PLANE_PROP_DIM_COLOR,
+	PLANE_PROP_IS_MML,
+	PLANE_PROP_MML_SUBMIT,
+	PLANE_PROP_BUFFER_ALLOC_ID,
+	PLANE_PROP_OVL_CSC_SET_BRIGHTNESS,
+	PLANE_PROP_OVL_CSC_SET_COLORTRANSFORM,
+	PLANE_PROP_DIRTY_ROI_NUM,
+	PLANE_PROP_DIRTY_ROI_X,
+	PLANE_PROP_DIRTY_ROI_Y,
+	PLANE_PROP_DIRTY_ROI_W,
+	PLANE_PROP_DIRTY_ROI_H,
+	PLANE_PROP_MODE,
+	PLANE_PROP_CUSTOM_MAX,
+};
+
 struct mtk_plane_state {
 	struct drm_plane_state		base;
 	struct mtk_plane_pending_state	pending;
+	u64				prop_val[PLANE_PROP_CUSTOM_MAX];
 };
 
 static inline struct mtk_plane_state *

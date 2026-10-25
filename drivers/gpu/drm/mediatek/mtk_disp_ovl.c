@@ -63,6 +63,7 @@
 
 /* OVL_CON_RGB_SWAP works only if OVL_CON_CLRFMT_MAN is enabled */
 #define OVL_CON_RGB_SWAP	BIT(25)
+#define OVL_CON_CLRFMT_DIM	BIT(28)
 
 #define OVL_CON_CLRFMT_RGB	(1 << 12)
 #define OVL_CON_CLRFMT_ARGB8888	(2 << 12)
@@ -119,6 +120,7 @@ static const u32 mt8173_formats[] = {
 };
 
 static const u32 mt6768_formats[] = {
+	DRM_FORMAT_C8,
 	DRM_FORMAT_XRGB8888,
 	DRM_FORMAT_ARGB8888,
 	DRM_FORMAT_BGRX8888,
@@ -453,6 +455,8 @@ static unsigned int mtk_ovl_fmt_convert(struct mtk_disp_ovl *ovl,
 	default:
 	case DRM_FORMAT_RGB565:
 		return OVL_CON_CLRFMT_RGB565(ovl);
+	case DRM_FORMAT_C8:
+		return OVL_CON_CLRFMT_DIM | OVL_CON_CLRFMT_RGB888(ovl);
 	case DRM_FORMAT_RGB332:
 		return 0;
 	case DRM_FORMAT_BGR565:
@@ -540,10 +544,10 @@ void mtk_ovl_layer_config(struct device *dev, unsigned int idx,
 		return;
 	}
 
-	if (pending->format == DRM_FORMAT_RGB332) {
+	if (pending->format == DRM_FORMAT_RGB332 || pending->format == DRM_FORMAT_C8) {
 		/*
-		 * MediaTek HWC dummy FB: Keep layer enabled in constant color blend mode
-		 * without DMA memory access, so OVL feeds black pixels and doesn't underflow.
+		 * MediaTek HWC dummy / dim FB: Keep layer enabled in constant color blend mode
+		 * without DMA memory access, so OVL feeds black pixels and doesn't underflow or hit addr 0.
 		 */
 		mtk_ddp_write_relaxed(cmdq_pkt, OVL_CONST_BLEND | 0xff,
 				      &ovl->cmdq_reg, ovl->regs, DISP_REG_OVL_CON(idx));
