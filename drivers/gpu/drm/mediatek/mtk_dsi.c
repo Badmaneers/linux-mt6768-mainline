@@ -957,6 +957,64 @@ void mtk_dsi_ddp_stop(struct device *dev)
 	mtk_dsi_poweroff(dsi);
 }
 
+struct mtk_drm_conn_caps {
+	unsigned int lcm_degree;
+	int lcm_color_mode;
+};
+
+#define MAX_MODES 30
+
+struct mtk_drm_connector_caps {
+	struct mtk_drm_conn_caps conn_caps;
+	unsigned int width_after_pq[MAX_MODES];
+	unsigned int height_after_pq[MAX_MODES];
+};
+
+static struct drm_property *mtk_conn_prop_ptrs[3];
+static const char * const mtk_conn_prop_names[3] = {
+	"CAPS_BLOB_ID",
+	"CSC_BL",
+	"PANEL_NITS",
+};
+static u64 mtk_conn_caps_blob_id;
+
+static struct drm_connector_funcs mtk_bridge_connector_funcs;
+
+static int mtk_connector_atomic_set_property(struct drm_connector *connector,
+					     struct drm_connector_state *state,
+					     struct drm_property *property,
+					     uint64_t val)
+{
+	int i;
+
+	for (i = 0; i < ARRAY_SIZE(mtk_conn_prop_ptrs); i++) {
+		if (mtk_conn_prop_ptrs[i] == property)
+			return 0;
+	}
+
+	return -EINVAL;
+}
+
+static int mtk_connector_atomic_get_property(struct drm_connector *connector,
+					     const struct drm_connector_state *state,
+					     struct drm_property *property,
+					     uint64_t *val)
+{
+	int i;
+
+	for (i = 0; i < ARRAY_SIZE(mtk_conn_prop_ptrs); i++) {
+		if (mtk_conn_prop_ptrs[i] == property) {
+			if (i == 0)
+				*val = mtk_conn_caps_blob_id;
+			else
+				*val = 0;
+			return 0;
+		}
+	}
+
+	return -EINVAL;
+}
+
 static int mtk_dsi_encoder_init(struct drm_device *drm, struct mtk_dsi *dsi)
 {
 	int ret;
@@ -983,6 +1041,43 @@ static int mtk_dsi_encoder_init(struct drm_device *drm, struct mtk_dsi *dsi)
 		drm_err(drm, "Unable to create bridge connector\n");
 		ret = PTR_ERR(dsi->connector);
 		goto err_cleanup_encoder;
+	}
+
+	{
+		int i;
+		struct mtk_drm_connector_caps conn_caps = { 0 };
+		struct drm_property_blob *blob;
+		u64 default_val;
+
+		conn_caps.width_after_pq[0] = 720;
+		conn_caps.height_after_pq[0] = 1600;
+
+		blob = drm_property_create_blob(drm, sizeof(conn_caps), &conn_caps);
+		if (!IS_ERR_OR_NULL(blob))
+			mtk_conn_caps_blob_id = blob->base.id;
+
+		mtk_bridge_connector_funcs = *dsi->connector->funcs;
+		mtk_bridge_connector_funcs.atomic_set_property = mtk_connector_atomic_set_property;
+		mtk_bridge_connector_funcs.atomic_get_property = mtk_connector_atomic_get_property;
+		dsi->connector->funcs = &mtk_bridge_connector_funcs;
+
+		for (i = 0; i < ARRAY_SIZE(mtk_conn_prop_ptrs); i++) {
+			if (!mtk_conn_prop_ptrs[i]) {
+				mtk_conn_prop_ptrs[i] = drm_property_create_range(drm,
+					DRM_MODE_PROP_ATOMIC,
+					mtk_conn_prop_names[i],
+					0, U64_MAX);
+			}
+			default_val = 0;
+			if (i == 0)
+				default_val = mtk_conn_caps_blob_id;
+
+			if (mtk_conn_prop_ptrs[i]) {
+				drm_object_attach_property(&dsi->connector->base,
+					mtk_conn_prop_ptrs[i],
+					default_val);
+			}
+		}
 	}
 
 	return 0;

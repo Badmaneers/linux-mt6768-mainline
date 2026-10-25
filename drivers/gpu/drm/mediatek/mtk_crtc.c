@@ -79,6 +79,96 @@ struct mtk_crtc {
 	struct mtk_ddp_comp		*ddp_comp[];
 };
 
+#define MTK_OVL_LAYER_NR 12
+
+enum mtk_crtc_custom_prop {
+	CRTC_PROP_OVERLAP_LAYER_NUM,
+	CRTC_PROP_LAYERING_IDX,
+	CRTC_PROP_PRESENT_FENCE,
+	CRTC_PROP_SF_PRESENT_FENCE,
+	CRTC_PROP_DOZE_ACTIVE,
+	CRTC_PROP_OUTPUT_ENABLE,
+	CRTC_PROP_OUTPUT_BUFF_IDX,
+	CRTC_PROP_OUTPUT_X,
+	CRTC_PROP_OUTPUT_Y,
+	CRTC_PROP_OUTPUT_WIDTH,
+	CRTC_PROP_OUTPUT_HEIGHT,
+	CRTC_PROP_OUTPUT_DST_WIDTH,
+	CRTC_PROP_OUTPUT_DST_HEIGHT,
+	CRTC_PROP_OUTPUT_FB_ID,
+	CRTC_PROP_INTF_BUFF_IDX,
+	CRTC_PROP_DISP_MODE_IDX,
+	CRTC_PROP_COLOR_TRANSFORM,
+	CRTC_PROP_USER_SCEN,
+	CRTC_PROP_HBM_ENABLE,
+	CRTC_PROP_HDR_ENABLE,
+	CRTC_PROP_MSYNC2_0_ENABLE,
+	CRTC_PROP_MSYNC2_0_EPT,
+	CRTC_PROP_OVL_DSI_SEQ,
+	CRTC_PROP_OUTPUT_SCENARIO,
+	CRTC_PROP_CAPS_BLOB_ID,
+	CRTC_PROP_AUTO_MODE,
+	CRTC_PROP_AUTO_FAKE_FRAME,
+	CRTC_PROP_AUTO_MIN_FPS,
+	CRTC_PROP_AOSP_CCORR_LINEAR,
+	CRTC_PROP_PARTIAL_UPDATE_ENABLE,
+	CRTC_PROP_BL_SYNC_GAMMA_GAIN,
+	CRTC_PROP_DYNAMIC_WCG_OFF,
+	CRTC_PROP_WCG_BY_COLOR_MODE,
+	CRTC_PROP_HW_BRIGHTNESS,
+	CRTC_PROP_BRIGHTNESS_NEED_SYNC,
+	CRTC_PROP_STYLUS_MODE,
+	CRTC_PROP_CUSTOM_MAX,
+};
+
+struct mtk_crtc_prop_desc {
+	const char *name;
+	u64 min;
+	u64 max;
+	u64 default_val;
+};
+
+static const struct mtk_crtc_prop_desc mtk_crtc_props[CRTC_PROP_CUSTOM_MAX] = {
+	[CRTC_PROP_OVERLAP_LAYER_NUM] = { "OVERLAP_LAYER_NUM", 0, U64_MAX, 0 },
+	[CRTC_PROP_LAYERING_IDX] = { "LAYERING_IDX", 0, U64_MAX, 0 },
+	[CRTC_PROP_PRESENT_FENCE] = { "PRESENT_FENCE", 0, U64_MAX, 0 },
+	[CRTC_PROP_SF_PRESENT_FENCE] = { "SF_PRESENT_FENCE", 0, U64_MAX, 0 },
+	[CRTC_PROP_DOZE_ACTIVE] = { "DOZE_ACTIVE", 0, U64_MAX, 0 },
+	[CRTC_PROP_OUTPUT_ENABLE] = { "OUTPUT_ENABLE", 0, U64_MAX, 0 },
+	[CRTC_PROP_OUTPUT_BUFF_IDX] = { "OUTPUT_BUFF_IDX", 0, U64_MAX, 0 },
+	[CRTC_PROP_OUTPUT_X] = { "OUTPUT_X", 0, U64_MAX, 0 },
+	[CRTC_PROP_OUTPUT_Y] = { "OUTPUT_Y", 0, U64_MAX, 0 },
+	[CRTC_PROP_OUTPUT_WIDTH] = { "OUTPUT_WIDTH", 0, U64_MAX, 0 },
+	[CRTC_PROP_OUTPUT_HEIGHT] = { "OUTPUT_HEIGHT", 0, U64_MAX, 0 },
+	[CRTC_PROP_OUTPUT_DST_WIDTH] = { "OUTPUT_DST_WIDTH", 0, U64_MAX, 0 },
+	[CRTC_PROP_OUTPUT_DST_HEIGHT] = { "OUTPUT_DST_HEIGHT", 0, U64_MAX, 0 },
+	[CRTC_PROP_OUTPUT_FB_ID] = { "OUTPUT_FB_ID", 0, U64_MAX, 0 },
+	[CRTC_PROP_INTF_BUFF_IDX] = { "INTF_BUFF_IDX", 0, U64_MAX, 0 },
+	[CRTC_PROP_DISP_MODE_IDX] = { "DISP_MODE_IDX", 0, U64_MAX, 0 },
+	[CRTC_PROP_COLOR_TRANSFORM] = { "COLOR_TRANSFORM", 0, U64_MAX, 0 },
+	[CRTC_PROP_USER_SCEN] = { "USER_SCEN", 0, U64_MAX, 0 },
+	[CRTC_PROP_HBM_ENABLE] = { "HBM_ENABLE", 0, U64_MAX, 0 },
+	[CRTC_PROP_HDR_ENABLE] = { "HDR_ENABLE", 0, U64_MAX, 0 },
+	[CRTC_PROP_MSYNC2_0_ENABLE] = { "MSYNC2_0_ENABLE", 0, U64_MAX, 0 },
+	[CRTC_PROP_MSYNC2_0_EPT] = { "MSYNC2_0_EPT", 0, U64_MAX, 0 },
+	[CRTC_PROP_OVL_DSI_SEQ] = { "OVL_DSI_SEQ", 0, U64_MAX, 0 },
+	[CRTC_PROP_OUTPUT_SCENARIO] = { "OUTPUT_SCENARIO", 0, U64_MAX, 0 },
+	[CRTC_PROP_CAPS_BLOB_ID] = { "CAPS_BLOB_ID", 0, U64_MAX, 0 },
+	[CRTC_PROP_AUTO_MODE] = { "AUTO_MODE", 0, U64_MAX, 0 },
+	[CRTC_PROP_AUTO_FAKE_FRAME] = { "AUTO_FAKE_FRAME", 0, U64_MAX, 0 },
+	[CRTC_PROP_AUTO_MIN_FPS] = { "AUTO_MIN_FPS", 0, U64_MAX, 0 },
+	[CRTC_PROP_AOSP_CCORR_LINEAR] = { "AOSP_CCORR_LINEAR", 0, U64_MAX, 0 },
+	[CRTC_PROP_PARTIAL_UPDATE_ENABLE] = { "PARTIAL_UPDATE_ENABLE", 0, U64_MAX, 0 },
+	[CRTC_PROP_BL_SYNC_GAMMA_GAIN] = { "BL_SYNC_GAMMA_GAIN", 0, U64_MAX, 0 },
+	[CRTC_PROP_DYNAMIC_WCG_OFF] = { "DYNAMIC_WCG_OFF", 0, U64_MAX, 0 },
+	[CRTC_PROP_WCG_BY_COLOR_MODE] = { "WCG_BY_COLOR_MODE", 0, U64_MAX, 0 },
+	[CRTC_PROP_HW_BRIGHTNESS] = { "HW_BRIGHTNESS", 0, U64_MAX, 0 },
+	[CRTC_PROP_BRIGHTNESS_NEED_SYNC] = { "BRIGHTNESS_NEED_SYNC", 0, U64_MAX, 0 },
+	[CRTC_PROP_STYLUS_MODE] = { "STYLUS_MODE", 0, U64_MAX, 0 },
+};
+
+static struct drm_property *mtk_crtc_prop_ptrs[CRTC_PROP_CUSTOM_MAX];
+
 struct mtk_crtc_state {
 	struct drm_crtc_state		base;
 
@@ -86,6 +176,7 @@ struct mtk_crtc_state {
 	unsigned int			pending_width;
 	unsigned int			pending_height;
 	unsigned int			pending_vrefresh;
+	u64				prop_val[CRTC_PROP_CUSTOM_MAX];
 };
 
 static inline struct mtk_crtc *to_mtk_crtc(struct drm_crtc *c)
@@ -96,6 +187,48 @@ static inline struct mtk_crtc *to_mtk_crtc(struct drm_crtc *c)
 static inline struct mtk_crtc_state *to_mtk_crtc_state(struct drm_crtc_state *s)
 {
 	return container_of(s, struct mtk_crtc_state, base);
+}
+
+static int mtk_crtc_atomic_set_property(struct drm_crtc *crtc,
+					struct drm_crtc_state *state,
+					struct drm_property *property,
+					uint64_t val)
+{
+	struct mtk_crtc_state *crtc_state = to_mtk_crtc_state(state);
+	int i;
+
+	for (i = 0; i < CRTC_PROP_CUSTOM_MAX; i++) {
+		if (mtk_crtc_prop_ptrs[i] == property) {
+			crtc_state->prop_val[i] = val;
+			return 0;
+		}
+	}
+
+	return -EINVAL;
+}
+
+static u64 mtk_crtc_caps_blob_id;
+
+static int mtk_crtc_atomic_get_property(struct drm_crtc *crtc,
+					const struct drm_crtc_state *state,
+					struct drm_property *property,
+					uint64_t *val)
+{
+	const struct mtk_crtc_state *crtc_state =
+		container_of(state, const struct mtk_crtc_state, base);
+	int i;
+
+	for (i = 0; i < CRTC_PROP_CUSTOM_MAX; i++) {
+		if (mtk_crtc_prop_ptrs[i] == property) {
+			if (i == CRTC_PROP_CAPS_BLOB_ID)
+				*val = mtk_crtc_caps_blob_id;
+			else
+				*val = crtc_state->prop_val[i];
+			return 0;
+		}
+	}
+
+	return -EINVAL;
 }
 
 static void mtk_crtc_finish_page_flip(struct mtk_crtc *mtk_crtc)
@@ -192,6 +325,7 @@ static void mtk_crtc_reset(struct drm_crtc *crtc)
 
 static struct drm_crtc_state *mtk_crtc_duplicate_state(struct drm_crtc *crtc)
 {
+	struct mtk_crtc_state *old_state = to_mtk_crtc_state(crtc->state);
 	struct mtk_crtc_state *state;
 
 	state = kmalloc_obj(*state);
@@ -203,6 +337,10 @@ static struct drm_crtc_state *mtk_crtc_duplicate_state(struct drm_crtc *crtc)
 	WARN_ON(state->base.crtc != crtc);
 	state->base.crtc = crtc;
 	state->pending_config = false;
+	if (old_state)
+		memcpy(state->prop_val, old_state->prop_val, sizeof(state->prop_val));
+	else
+		memset(state->prop_val, 0, sizeof(state->prop_val));
 
 	return &state->base;
 }
@@ -296,7 +434,6 @@ struct mtk_ddp_comp *mtk_ddp_comp_for_plane(struct drm_crtc *crtc,
 		count += mtk_ddp_comp_layer_nr(comp);
 	}
 
-	WARN(1, "Failed to find component for plane %d\n", plane->index);
 	return NULL;
 }
 
@@ -925,6 +1062,8 @@ static const struct drm_crtc_funcs mtk_crtc_funcs = {
 	.atomic_destroy_state	= mtk_crtc_destroy_state,
 	.enable_vblank		= mtk_crtc_enable_vblank,
 	.disable_vblank		= mtk_crtc_disable_vblank,
+	.atomic_set_property	= mtk_crtc_atomic_set_property,
+	.atomic_get_property	= mtk_crtc_atomic_get_property,
 };
 
 static const struct drm_crtc_helper_funcs mtk_crtc_helper_funcs = {
@@ -935,6 +1074,13 @@ static const struct drm_crtc_helper_funcs mtk_crtc_helper_funcs = {
 	.atomic_flush	= mtk_crtc_atomic_flush,
 	.atomic_enable	= mtk_crtc_atomic_enable,
 	.atomic_disable	= mtk_crtc_atomic_disable,
+};
+
+struct mtk_drm_crtc_caps {
+	u8 wb_caps[128];
+	unsigned int crtc_ability;
+	unsigned int ovl_csc_bit_number;
+	unsigned int rpo_support_num;
 };
 
 static int mtk_crtc_init(struct drm_device *drm, struct mtk_crtc *mtk_crtc,
@@ -955,6 +1101,38 @@ static int mtk_crtc_init(struct drm_device *drm, struct mtk_crtc *mtk_crtc,
 					&mtk_crtc_funcs, NULL);
 	if (ret)
 		goto err_cleanup_crtc;
+
+	{
+		struct mtk_drm_crtc_caps crtc_caps = {
+			.ovl_csc_bit_number = 18,
+			.rpo_support_num = 1,
+		};
+		struct drm_property_blob *blob;
+		u64 default_val;
+
+		blob = drm_property_create_blob(drm, sizeof(crtc_caps), &crtc_caps);
+		if (!IS_ERR_OR_NULL(blob))
+			mtk_crtc_caps_blob_id = blob->base.id;
+
+		for (i = 0; i < CRTC_PROP_CUSTOM_MAX; i++) {
+			if (!mtk_crtc_prop_ptrs[i]) {
+				mtk_crtc_prop_ptrs[i] = drm_property_create_range(drm,
+					DRM_MODE_PROP_ATOMIC,
+					mtk_crtc_props[i].name,
+					mtk_crtc_props[i].min,
+					mtk_crtc_props[i].max);
+			}
+			default_val = mtk_crtc_props[i].default_val;
+			if (i == CRTC_PROP_CAPS_BLOB_ID)
+				default_val = mtk_crtc_caps_blob_id;
+
+			if (mtk_crtc_prop_ptrs[i]) {
+				drm_object_attach_property(&mtk_crtc->base.base,
+					mtk_crtc_prop_ptrs[i],
+					default_val);
+			}
+		}
+	}
 
 	drm_crtc_helper_add(&mtk_crtc->base, &mtk_crtc_helper_funcs);
 
@@ -997,17 +1175,20 @@ enum drm_plane_type mtk_crtc_plane_type(unsigned int plane_idx,
 
 static int mtk_crtc_init_comp_planes(struct drm_device *drm_dev,
 				     struct mtk_crtc *mtk_crtc,
-				     int comp_idx, int pipe)
+				     int comp_idx, int pipe, int total_planes)
 {
 	int num_planes = mtk_crtc_num_comp_planes(mtk_crtc, comp_idx);
 	struct mtk_ddp_comp *comp = mtk_crtc->ddp_comp[comp_idx];
 	int i, ret;
 
+	if (comp_idx == 0 && pipe == 0 && total_planes > num_planes)
+		num_planes = total_planes;
+
 	for (i = 0; i < num_planes; i++) {
 		ret = mtk_plane_init(drm_dev,
 				&mtk_crtc->planes[mtk_crtc->layer_nr],
 				BIT(pipe),
-				mtk_crtc_plane_type(mtk_crtc->layer_nr, num_planes),
+				mtk_crtc_plane_type(mtk_crtc->layer_nr, total_planes),
 				mtk_ddp_comp_supported_rotations(comp),
 				mtk_ddp_comp_get_blend_modes(comp),
 				mtk_ddp_comp_get_formats(comp),
@@ -1125,13 +1306,16 @@ int mtk_crtc_create(struct drm_device *drm_dev, const unsigned int *path,
 	for (i = 0; i < mtk_crtc->ddp_comp_nr; i++)
 		num_comp_planes += mtk_crtc_num_comp_planes(mtk_crtc, i);
 
+	if (crtc_i == 0 && num_comp_planes < MTK_OVL_LAYER_NR)
+		num_comp_planes = MTK_OVL_LAYER_NR;
+
 	mtk_crtc->planes = devm_kcalloc(dev, num_comp_planes,
 					sizeof(struct drm_plane), GFP_KERNEL);
 	if (!mtk_crtc->planes)
 		return -ENOMEM;
 
 	for (i = 0; i < mtk_crtc->ddp_comp_nr; i++) {
-		ret = mtk_crtc_init_comp_planes(drm_dev, mtk_crtc, i, crtc_i);
+		ret = mtk_crtc_init_comp_planes(drm_dev, mtk_crtc, i, crtc_i, num_comp_planes);
 		if (ret)
 			return ret;
 	}

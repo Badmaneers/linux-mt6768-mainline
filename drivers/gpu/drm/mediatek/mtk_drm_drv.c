@@ -33,6 +33,9 @@
 #include "mtk_drm_drv.h"
 #include "mtk_drm_ioctl.h"
 
+#include <drm/drm_framebuffer.h>
+#include <drm/drm_modeset_helper.h>
+
 #define DRIVER_NAME "mediatek"
 #define DRIVER_DESC "Mediatek SoC DRM"
 #define DRIVER_MAJOR 1
@@ -40,6 +43,23 @@
 
 static const struct drm_mode_config_helper_funcs mtk_drm_mode_config_helpers = {
 	.atomic_commit_tail = drm_atomic_helper_commit_tail_rpm,
+};
+
+static void mtk_drm_fb_destroy(struct drm_framebuffer *fb)
+{
+	int i;
+
+	for (i = 0; i < fb->format->num_planes; i++) {
+		if (fb->obj[i])
+			drm_gem_object_put(fb->obj[i]);
+	}
+	drm_framebuffer_cleanup(fb);
+	kfree(fb);
+}
+
+static const struct drm_framebuffer_funcs mtk_drm_fb_funcs = {
+	.destroy = mtk_drm_fb_destroy,
+	.create_handle = drm_gem_fb_create_handle,
 };
 
 static struct drm_framebuffer *
@@ -50,6 +70,23 @@ mtk_drm_mode_fb_create(struct drm_device *dev,
 {
 	if (info->num_planes != 1)
 		return ERR_PTR(-EINVAL);
+
+	if (cmd->pixel_format == DRM_FORMAT_C8) {
+		struct drm_framebuffer *fb;
+		int ret;
+
+		fb = kzalloc(sizeof(*fb), GFP_KERNEL);
+		if (!fb)
+			return ERR_PTR(-ENOMEM);
+
+		drm_helper_mode_fill_fb_struct(dev, fb, info, cmd);
+		ret = drm_framebuffer_init(dev, fb, &mtk_drm_fb_funcs);
+		if (ret) {
+			kfree(fb);
+			return ERR_PTR(ret);
+		}
+		return fb;
+	}
 
 	return drm_gem_fb_create(dev, file, info, cmd);
 }
@@ -276,6 +313,8 @@ static const struct mtk_mmsys_driver_data mt6768_mmsys_driver_data = {
 	.main_len = ARRAY_SIZE(mt6768_mtk_ddp_main),
 	.shadow_register = true,
 	.mmsys_dev_num = 1,
+	.min_width = 1,
+	.min_height = 1,
 };
 
 static const struct mtk_mmsys_driver_data mt8167_mmsys_driver_data = {
@@ -495,8 +534,8 @@ static int mtk_drm_kms_init(struct drm_device *drm)
 	if (ret)
 		return ret;
 
-	drm->mode_config.min_width = 64;
-	drm->mode_config.min_height = 64;
+	drm->mode_config.min_width = 1;
+	drm->mode_config.min_height = 1;
 
 	/*
 	 * set max width and height as default value(4096x4096).

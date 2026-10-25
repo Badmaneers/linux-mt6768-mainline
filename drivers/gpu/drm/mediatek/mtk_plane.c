@@ -61,6 +61,10 @@ static struct drm_plane_state *mtk_plane_duplicate_state(struct drm_plane *plane
 	WARN_ON(state->base.plane != plane);
 
 	state->pending = old_state->pending;
+	if (old_state)
+		memcpy(state->prop_val, old_state->prop_val, sizeof(state->prop_val));
+	else
+		memset(state->prop_val, 0, sizeof(state->prop_val));
 
 	return &state->base;
 }
@@ -110,6 +114,74 @@ static int mtk_plane_atomic_async_check(struct drm_plane *plane,
 						   true, true);
 }
 
+struct mtk_plane_prop_desc {
+	const char *name;
+	u64 min;
+	u64 max;
+	u64 default_val;
+};
+
+static const struct mtk_plane_prop_desc mtk_plane_props[PLANE_PROP_CUSTOM_MAX] = {
+	[PLANE_PROP_NEXT_BUFF_IDX] = { "NEXT_BUFF_IDX", 0, U64_MAX, 0 },
+	[PLANE_PROP_LYE_BLOB_IDX] = { "LYE_BLOB_IDX", 0, U64_MAX, 0 },
+	[PLANE_PROP_DATASPACE] = { "DATASPACE", 0, U64_MAX, 0 },
+	[PLANE_PROP_VPITCH] = { "VPITCH", 0, U64_MAX, 0 },
+	[PLANE_PROP_COMPRESS] = { "COMPRESS", 0, U64_MAX, 0 },
+	[PLANE_PROP_PLANE_ALPHA] = { "PLANE_PROP_PLANE_ALPHA", 0, U64_MAX, 0 },
+	[PLANE_PROP_ALPHA_CON] = { "PLANE_PROP_ALPHA_CON", 0, U64_MAX, 0 },
+	[PLANE_PROP_DIM_COLOR] = { "DIM_COLOR", 0, U64_MAX, 0 },
+	[PLANE_PROP_IS_MML] = { "IS_MML", 0, U64_MAX, 0 },
+	[PLANE_PROP_MML_SUBMIT] = { "MML_SUBMIT", 0, U64_MAX, 0 },
+	[PLANE_PROP_BUFFER_ALLOC_ID] = { "BUFFER_ALLOC_ID", 0, U64_MAX, 0 },
+	[PLANE_PROP_OVL_CSC_SET_BRIGHTNESS] = { "OVL_CSC_SET_BRIGHTNESS", 0, U64_MAX, 0 },
+	[PLANE_PROP_OVL_CSC_SET_COLORTRANSFORM] = { "OVL_CSC_SET_COLORTRANSFORM", 0, U64_MAX, 0 },
+	[PLANE_PROP_DIRTY_ROI_NUM] = { "DIRTY_ROI_NUM", 0, U64_MAX, 0 },
+	[PLANE_PROP_DIRTY_ROI_X] = { "DIRTY_ROI_X", 0, U64_MAX, 0 },
+	[PLANE_PROP_DIRTY_ROI_Y] = { "DIRTY_ROI_Y", 0, U64_MAX, 0 },
+	[PLANE_PROP_DIRTY_ROI_W] = { "DIRTY_ROI_W", 0, U64_MAX, 0 },
+	[PLANE_PROP_DIRTY_ROI_H] = { "DIRTY_ROI_H", 0, U64_MAX, 0 },
+	[PLANE_PROP_MODE] = { "MODE", 0, U64_MAX, 0 },
+};
+
+static struct drm_property *mtk_plane_prop_ptrs[PLANE_PROP_CUSTOM_MAX];
+
+static int mtk_plane_atomic_set_property(struct drm_plane *plane,
+					 struct drm_plane_state *state,
+					 struct drm_property *property,
+					 uint64_t val)
+{
+	struct mtk_plane_state *plane_state = to_mtk_plane_state(state);
+	int i;
+
+	for (i = 0; i < PLANE_PROP_CUSTOM_MAX; i++) {
+		if (mtk_plane_prop_ptrs[i] == property) {
+			plane_state->prop_val[i] = val;
+			return 0;
+		}
+	}
+
+	return -EINVAL;
+}
+
+static int mtk_plane_atomic_get_property(struct drm_plane *plane,
+					 const struct drm_plane_state *state,
+					 struct drm_property *property,
+					 uint64_t *val)
+{
+	const struct mtk_plane_state *plane_state =
+		container_of(state, const struct mtk_plane_state, base);
+	int i;
+
+	for (i = 0; i < PLANE_PROP_CUSTOM_MAX; i++) {
+		if (mtk_plane_prop_ptrs[i] == property) {
+			*val = plane_state->prop_val[i];
+			return 0;
+		}
+	}
+
+	return -EINVAL;
+}
+
 static void mtk_plane_update_new_state(struct drm_plane_state *new_state,
 				       struct mtk_plane_state *mtk_plane_state)
 {
@@ -124,13 +196,17 @@ static void mtk_plane_update_new_state(struct drm_plane_state *new_state,
 	int offset;
 
 	gem = fb->obj[0];
-	dma_obj = to_drm_gem_dma_obj(gem);
-	addr = dma_obj->dma_addr;
+	if (gem) {
+		dma_obj = to_drm_gem_dma_obj(gem);
+		addr = dma_obj->dma_addr;
+	} else {
+		addr = 0;
+	}
 	pitch = fb->pitches[0];
 	format = fb->format->format;
 	modifier = fb->modifier;
 
-	if (modifier == DRM_FORMAT_MOD_LINEAR) {
+	if (gem && modifier == DRM_FORMAT_MOD_LINEAR) {
 		/*
 		 * Using dma_addr_t variable to calculate with multiplier of different types,
 		 * for example: addr += (new_state->src.x1 >> 16) * fb->format->cpp[0];
@@ -140,7 +216,7 @@ static void mtk_plane_update_new_state(struct drm_plane_state *new_state,
 		addr += offset;
 		offset = (new_state->src.y1 >> 16) * pitch;
 		addr += offset;
-	} else {
+	} else if (gem) {
 		int width_in_blocks = ALIGN(fb->width, AFBC_DATA_BLOCK_WIDTH)
 				      / AFBC_DATA_BLOCK_WIDTH;
 		int height_in_blocks = ALIGN(fb->height, AFBC_DATA_BLOCK_HEIGHT)
@@ -225,6 +301,8 @@ static const struct drm_plane_funcs mtk_plane_funcs = {
 	.atomic_duplicate_state = mtk_plane_duplicate_state,
 	.atomic_destroy_state = mtk_plane_destroy_state,
 	.format_mod_supported = mtk_plane_format_mod_supported,
+	.atomic_set_property = mtk_plane_atomic_set_property,
+	.atomic_get_property = mtk_plane_atomic_get_property,
 };
 
 static int mtk_plane_atomic_check(struct drm_plane *plane,
@@ -237,6 +315,9 @@ static int mtk_plane_atomic_check(struct drm_plane *plane,
 	int ret;
 
 	if (!fb)
+		return 0;
+
+	if (fb->format->format == DRM_FORMAT_C8)
 		return 0;
 
 	if (WARN_ON(!new_plane_state->crtc))
@@ -359,6 +440,25 @@ int mtk_plane_init(struct drm_device *dev, struct drm_plane *plane,
 		err = drm_plane_create_blend_mode_property(plane, blend_modes);
 		if (err)
 			DRM_ERROR("failed to create property: blend_mode\n");
+	}
+
+	{
+		int i;
+
+		for (i = 0; i < PLANE_PROP_CUSTOM_MAX; i++) {
+			if (!mtk_plane_prop_ptrs[i]) {
+				mtk_plane_prop_ptrs[i] = drm_property_create_range(dev,
+					DRM_MODE_PROP_ATOMIC,
+					mtk_plane_props[i].name,
+					mtk_plane_props[i].min,
+					mtk_plane_props[i].max);
+			}
+			if (mtk_plane_prop_ptrs[i]) {
+				drm_object_attach_property(&plane->base,
+					mtk_plane_prop_ptrs[i],
+					mtk_plane_props[i].default_val);
+			}
+		}
 	}
 
 	drm_plane_helper_add(plane, &mtk_plane_helper_funcs);
