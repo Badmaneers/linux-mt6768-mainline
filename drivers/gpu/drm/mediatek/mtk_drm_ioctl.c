@@ -9,6 +9,7 @@
 #include <linux/sync_file.h>
 #include <linux/file.h>
 #include <linux/wait.h>
+#include <linux/slab.h>
 #include <linux/vmalloc.h>
 #include <linux/atomic.h>
 #include <drm/drm_atomic.h>
@@ -642,6 +643,78 @@ int mtk_drm_ioctl_set_pq_caps(struct drm_device *dev, void *data,
 	return 0;
 }
 
+int mtk_drm_ioctl_pq_proxy(struct drm_device *dev, void *data,
+			   struct drm_file *file_priv)
+{
+	struct drm_crtc *crtc;
+	struct mtk_drm_pq_proxy_ctl *params = data;
+	unsigned int pq_type, cmd;
+	char stack_kdata[128];
+	char *kdata = stack_kdata;
+	int ret = 0;
+
+	if (!params || !params->size || !params->data)
+		return -EINVAL;
+
+	crtc = drm_crtc_find(dev, file_priv, params->crtc_id);
+	if (!crtc) {
+		crtc = list_first_entry_or_null(&dev->mode_config.crtc_list,
+						struct drm_crtc, head);
+		if (!crtc)
+			return -EINVAL;
+	}
+
+	if (params->size > sizeof(stack_kdata)) {
+		kdata = kmalloc(params->size, GFP_KERNEL);
+		if (!kdata)
+			return -ENOMEM;
+	}
+
+	if (copy_from_user(kdata, (void __user *)params->data, params->size)) {
+		if (kdata != stack_kdata)
+			kfree(kdata);
+		return -EFAULT;
+	}
+
+	pq_type = params->cmd >> 16;
+	cmd = params->cmd & 0xffff;
+
+	if (pq_type == MTK_DISP_VIRTUAL_TYPE) {
+		switch (cmd) {
+		case PQ_VIRTUAL_GET_MASTER_INFO:
+			if (params->size >= sizeof(int))
+				*(int *)kdata = drm_is_current_master(file_priv);
+			break;
+		case PQ_VIRTUAL_WAIT_CRTC_READY:
+			if (params->size >= sizeof(int))
+				*(int *)kdata = 1;
+			break;
+		case PQ_VIRTUAL_SET_PROPERTY:
+		case PQ_VIRTUAL_CHECK_TRIGGER:
+		case PQ_VIRTUAL_RELAY_ENGINES:
+		case PQ_VIRTUAL_GET_PIXEL_TYPE_BY_FENCE:
+		default:
+			break;
+		}
+	}
+
+	if (cmd > PQ_GET_CMD_START) {
+		if (copy_to_user((void __user *)params->data, kdata, params->size))
+			ret = -EFAULT;
+	}
+
+	if (kdata != stack_kdata)
+		kfree(kdata);
+
+	return ret;
+}
+
+int mtk_drm_ioctl_pq_frame_config(struct drm_device *dev, void *data,
+				  struct drm_file *file_priv)
+{
+	return 0;
+}
+
 const struct drm_ioctl_desc mtk_ioctls[MTK_NUM_IOCTLS] = {
 	DRM_IOCTL_DEF_DRV(MTK_GEM_SUBMIT, mtk_drm_ioctl_gem_submit, DRM_RENDER_ALLOW),
 	DRM_IOCTL_DEF_DRV(MTK_SESSION_CREATE, mtk_drm_ioctl_session_create, DRM_RENDER_ALLOW),
@@ -670,4 +743,6 @@ const struct drm_ioctl_desc mtk_ioctls[MTK_NUM_IOCTLS] = {
 	DRM_IOCTL_DEF_DRV(MTK_SET_PQ_CAPS, mtk_drm_ioctl_set_pq_caps, DRM_RENDER_ALLOW),
 	DRM_IOCTL_DEF_DRV(MTK_GET_PANELS_INFO, mtk_drm_ioctl_get_all_connector_panel_info, DRM_RENDER_ALLOW),
 	DRM_IOCTL_DEF_DRV(MTK_KICK_IDLE, mtk_drm_ioctl_kick_idle, DRM_RENDER_ALLOW),
+	DRM_IOCTL_DEF_DRV(MTK_PQ_PROXY_IOCTL, mtk_drm_ioctl_pq_proxy, DRM_RENDER_ALLOW),
+	DRM_IOCTL_DEF_DRV(MTK_PQ_FRAME_CONFIG, mtk_drm_ioctl_pq_frame_config, DRM_RENDER_ALLOW),
 };
