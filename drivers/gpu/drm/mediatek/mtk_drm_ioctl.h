@@ -12,6 +12,8 @@
 #include <drm/drm_ioctl.h>
 #include <uapi/drm/mediatek_drm.h>
 
+int mtk_drm_ioctl_gem_submit(struct drm_device *dev, void *data,
+			     struct drm_file *file_priv);
 int mtk_drm_ioctl_session_create(struct drm_device *dev, void *data,
 				 struct drm_file *file_priv);
 int mtk_drm_ioctl_session_destroy(struct drm_device *dev, void *data,

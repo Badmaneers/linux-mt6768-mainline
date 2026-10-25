@@ -199,6 +199,72 @@ int mtk_drm_ioctl_get_session_info(struct drm_device *dev, void *data,
 	return 0;
 }
 
+#define MTK_MAX_LAYERS 8
+static struct sync_timeline *g_layer_timelines[MTK_MAX_LAYERS];
+static atomic_t g_layer_fence_idx[MTK_MAX_LAYERS];
+static DEFINE_MUTEX(g_gem_submit_lock);
+
+int mtk_drm_ioctl_gem_submit(struct drm_device *dev, void *data,
+			     struct drm_file *file_priv)
+{
+	struct drm_mtk_gem_submit *args = data;
+	struct fence_data fence;
+	unsigned int layer_id;
+	int ret;
+
+	if (!args)
+		return -EINVAL;
+
+	if (args->type == MTK_SUBMIT_OUT_FENCE)
+		layer_id = 4;
+	else
+		layer_id = min_t(unsigned int, args->layer_id, MTK_MAX_LAYERS - 1);
+
+	if (args->layer_en) {
+		mutex_lock(&g_gem_submit_lock);
+		if (!g_layer_timelines[layer_id]) {
+			char name[32];
+			snprintf(name, sizeof(name), "layer_%u", layer_id);
+			g_layer_timelines[layer_id] = mtk_sync_timeline_create(name);
+			atomic_set(&g_layer_fence_idx[layer_id], 0);
+		}
+
+		if (!g_layer_timelines[layer_id]) {
+			mutex_unlock(&g_gem_submit_lock);
+			args->fence_fd = -1;
+			args->index = 0;
+			return -ENOMEM;
+		}
+
+		/* Signal the previous buffer release fence for this layer */
+		if (g_layer_timelines[layer_id]->value < atomic_read(&g_layer_fence_idx[layer_id])) {
+			int inc = atomic_read(&g_layer_fence_idx[layer_id]) - g_layer_timelines[layer_id]->value;
+			mtk_sync_timeline_inc(g_layer_timelines[layer_id], inc, ktime_get());
+		}
+
+		/* Create a new release fence for the current buffer */
+		fence.fence = -1;
+		fence.value = atomic_inc_return(&g_layer_fence_idx[layer_id]);
+		snprintf(fence.name, sizeof(fence.name), "rel_fence_%u_%u", layer_id, fence.value);
+
+		ret = mtk_sync_fence_create(g_layer_timelines[layer_id], &fence);
+		mutex_unlock(&g_gem_submit_lock);
+
+		if (ret == 0) {
+			args->fence_fd = fence.fence;
+			args->index = fence.value;
+		} else {
+			args->fence_fd = -1;
+			args->index = 0;
+		}
+	} else {
+		args->fence_fd = -1;
+		args->index = 0;
+	}
+
+	return 0;
+}
+
 int mtk_drm_ioctl_session_create(struct drm_device *dev, void *data,
 				 struct drm_file *file_priv)
 {
@@ -577,6 +643,7 @@ int mtk_drm_ioctl_set_pq_caps(struct drm_device *dev, void *data,
 }
 
 const struct drm_ioctl_desc mtk_ioctls[MTK_NUM_IOCTLS] = {
+	DRM_IOCTL_DEF_DRV(MTK_GEM_SUBMIT, mtk_drm_ioctl_gem_submit, DRM_RENDER_ALLOW),
 	DRM_IOCTL_DEF_DRV(MTK_SESSION_CREATE, mtk_drm_ioctl_session_create, DRM_RENDER_ALLOW),
 	DRM_IOCTL_DEF_DRV(MTK_SESSION_DESTROY, mtk_drm_ioctl_session_destroy, DRM_RENDER_ALLOW),
 	DRM_IOCTL_DEF_DRV(MTK_LAYERING_RULE, mtk_drm_ioctl_layering_rule, DRM_RENDER_ALLOW),

@@ -290,6 +290,29 @@ struct mtk_drm_pq_caps_info {
 	struct drm_mtk_ccorr_caps ccorr_caps;
 };
 
+#define MTK_SUBMIT_NO_IMPLICIT   0x0 /* disable implicit sync */
+#define MTK_SUBMIT_IN_FENCE      0x1 /* enable input fence */
+#define MTK_SUBMIT_OUT_FENCE     0x2 /* enable output fence */
+
+struct drm_mtk_gem_submit {
+	__u32 type;
+	/* session */
+	__u32 session_id;
+	/* layer */
+	__u32 layer_id;
+	__u32 layer_en;
+	/* buffer */
+	__u32 fb_id;
+	/* output */
+	__u32 index;
+	__s32 fence_fd;
+	__u32 interface_index;
+	__s32 interface_fence_fd;
+	__s32 ion_fd;
+};
+
+#define DRM_IOCTL_MTK_GEM_SUBMIT	DRM_IOWR(DRM_COMMAND_BASE + \
+		DRM_MTK_GEM_SUBMIT, struct drm_mtk_gem_submit)
 #define DRM_IOCTL_MTK_SESSION_CREATE	DRM_IOWR(DRM_COMMAND_BASE + \
 		DRM_MTK_SESSION_CREATE, struct drm_mtk_session)
 #define DRM_IOCTL_MTK_SESSION_DESTROY	DRM_IOWR(DRM_COMMAND_BASE + \
