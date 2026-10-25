@@ -12,6 +12,7 @@
 #include <linux/of_platform.h>
 #include <linux/phy/phy.h>
 #include <linux/platform_device.h>
+#include <linux/backlight.h>
 #include <linux/reset.h>
 #include <linux/units.h>
 
@@ -31,6 +32,7 @@
 #include "mtk_ddp_comp.h"
 #include "mtk_disp_drv.h"
 #include "mtk_drm_drv.h"
+#include "mtk_dsi.h"
 
 #define DSI_START		0x00
 
@@ -204,6 +206,7 @@ struct mtk_dsi {
 	struct drm_bridge bridge;
 	struct drm_bridge *next_bridge;
 	struct drm_connector *connector;
+	struct drm_panel *panel;
 	struct phy *phy;
 
 	void __iomem *regs;
@@ -957,6 +960,195 @@ void mtk_dsi_ddp_stop(struct device *dev)
 	mtk_dsi_poweroff(dsi);
 }
 
+static struct drm_property *mtk_connector_prop_ptrs[CONNECTOR_PROP_CUSTOM_MAX];
+static struct mtk_dsi *mtk_dsi_ptr;
+static u32 mtk_connector_caps_blob_id;
+static struct drm_connector_funcs mtk_dsi_connector_funcs;
+
+struct mtk_connector_prop_desc {
+	enum mtk_connector_prop_id id;
+	const char *name;
+	u32 flags;
+	u64 min;
+	u64 max;
+};
+
+static const struct mtk_connector_prop_desc mtk_connector_prop_descs[] = {
+	{ CONNECTOR_PROP_CAPS_BLOB_ID, "CAPS_BLOB_ID", DRM_MODE_PROP_IMMUTABLE, 0, U64_MAX },
+	{ CONNECTOR_PROP_CSC_BL,        "CSC_BL",        DRM_MODE_PROP_ATOMIC,    0, U64_MAX },
+	{ CONNECTOR_PROP_PANEL_NITS,    "PANEL_NITS",    DRM_MODE_PROP_ATOMIC,    0, U64_MAX },
+};
+
+static struct drm_connector_state *
+mtk_connector_atomic_create_state(struct drm_connector *connector)
+{
+	struct mtk_connector_state *state;
+
+	state = kzalloc(sizeof(*state), GFP_KERNEL);
+	if (!state)
+		return ERR_PTR(-ENOMEM);
+
+	__drm_atomic_helper_connector_state_init(&state->base, connector);
+	state->prop_val[CONNECTOR_PROP_CAPS_BLOB_ID] = mtk_connector_caps_blob_id;
+
+	return &state->base;
+}
+
+static void mtk_connector_reset(struct drm_connector *connector)
+{
+	struct mtk_connector_state *state;
+
+	if (connector->state) {
+		__drm_atomic_helper_connector_destroy_state(connector->state);
+		kfree(connector->state);
+		connector->state = NULL;
+	}
+
+	state = kzalloc(sizeof(*state), GFP_KERNEL);
+	if (state) {
+		__drm_atomic_helper_connector_reset(connector, &state->base);
+		state->prop_val[CONNECTOR_PROP_CAPS_BLOB_ID] = mtk_connector_caps_blob_id;
+	}
+}
+
+static struct drm_connector_state *
+mtk_connector_atomic_duplicate_state(struct drm_connector *connector)
+{
+	struct mtk_connector_state *old_state;
+	struct mtk_connector_state *state;
+
+	if (WARN_ON(!connector->state))
+		return NULL;
+
+	old_state = to_mtk_connector_state(connector->state);
+	state = kmalloc(sizeof(*state), GFP_KERNEL);
+	if (!state)
+		return NULL;
+
+	__drm_atomic_helper_connector_duplicate_state(connector, &state->base);
+
+	memcpy(state->prop_val, old_state->prop_val, sizeof(state->prop_val));
+
+	return &state->base;
+}
+
+static void mtk_connector_atomic_destroy_state(struct drm_connector *connector,
+					       struct drm_connector_state *state)
+{
+	struct mtk_connector_state *mtk_state = to_mtk_connector_state(state);
+
+	__drm_atomic_helper_connector_destroy_state(state);
+	kfree(mtk_state);
+}
+
+static int mtk_connector_atomic_set_property(struct drm_connector *connector,
+					     struct drm_connector_state *state,
+					     struct drm_property *property,
+					     uint64_t val)
+{
+	struct mtk_connector_state *mtk_state = to_mtk_connector_state(state);
+	int i;
+
+	for (i = 0; i < CONNECTOR_PROP_CUSTOM_MAX; i++) {
+		if (mtk_connector_prop_ptrs[i] == property) {
+			mtk_state->prop_val[i] = val;
+
+			if (i == CONNECTOR_PROP_CSC_BL && mtk_dsi_ptr && mtk_dsi_ptr->panel &&
+			    mtk_dsi_ptr->panel->backlight && val > 0) {
+				backlight_device_set_brightness(mtk_dsi_ptr->panel->backlight, (unsigned long)val);
+			}
+			return 0;
+		}
+	}
+
+	return -EINVAL;
+}
+
+static int mtk_connector_atomic_get_property(struct drm_connector *connector,
+					     const struct drm_connector_state *state,
+					     struct drm_property *property,
+					     uint64_t *val)
+{
+	const struct mtk_connector_state *mtk_state =
+		to_mtk_connector_state((struct drm_connector_state *)state);
+	int i;
+
+	for (i = 0; i < CONNECTOR_PROP_CUSTOM_MAX; i++) {
+		if (mtk_connector_prop_ptrs[i] == property) {
+			*val = mtk_state->prop_val[i];
+			return 0;
+		}
+	}
+
+	return -EINVAL;
+}
+
+static void mtk_dsi_create_connector_properties(struct drm_device *drm, struct mtk_dsi *dsi)
+{
+	struct drm_connector *conn = dsi->connector;
+	struct mtk_drm_connector_caps caps;
+	struct drm_property_blob *blob;
+	struct drm_property *prop;
+	struct drm_display_mode *mode;
+	int mode_idx = 0;
+	u32 blob_id = 0;
+	int i;
+
+	if (!conn)
+		return;
+
+	memset(&caps, 0, sizeof(caps));
+	caps.conn_caps.lcm_degree = 0;
+	caps.conn_caps.lcm_color_mode = 0;
+
+	list_for_each_entry(mode, &conn->modes, head) {
+		if (mode_idx < MTK_CONNECTOR_MAX_MODES) {
+			caps.width_after_pq[mode_idx] = mode->hdisplay;
+			caps.height_after_pq[mode_idx] = mode->vdisplay;
+			mode_idx++;
+		}
+	}
+	if (mode_idx == 0) {
+		caps.width_after_pq[0] = 720;
+		caps.height_after_pq[0] = 1600;
+	}
+
+	blob = drm_property_create_blob(drm, sizeof(caps), &caps);
+	if (!IS_ERR(blob))
+		blob_id = blob->base.id;
+	else
+		drm_err(drm, "Failed to create connector caps blob: %ld\n", PTR_ERR(blob));
+
+	mtk_connector_caps_blob_id = blob_id;
+
+	for (i = 0; i < CONNECTOR_PROP_CUSTOM_MAX; i++) {
+		const struct mtk_connector_prop_desc *desc = &mtk_connector_prop_descs[i];
+		u64 default_val = 0;
+
+		prop = mtk_connector_prop_ptrs[i];
+		if (!prop) {
+			prop = drm_property_create_range(drm, desc->flags,
+							 desc->name, desc->min,
+							 desc->max);
+			if (!prop) {
+				drm_err(drm, "Failed to create connector prop: %s\n", desc->name);
+				continue;
+			}
+			mtk_connector_prop_ptrs[i] = prop;
+		}
+
+		if (i == CONNECTOR_PROP_CAPS_BLOB_ID)
+			default_val = blob_id;
+
+		drm_object_attach_property(&conn->base, prop, default_val);
+	}
+
+	if (conn->state) {
+		struct mtk_connector_state *state = to_mtk_connector_state(conn->state);
+		state->prop_val[CONNECTOR_PROP_CAPS_BLOB_ID] = blob_id;
+	}
+}
+
 static int mtk_dsi_encoder_init(struct drm_device *drm, struct mtk_dsi *dsi)
 {
 	int ret;
@@ -985,6 +1177,19 @@ static int mtk_dsi_encoder_init(struct drm_device *drm, struct mtk_dsi *dsi)
 		goto err_cleanup_encoder;
 	}
 
+	/* Wrap drm_bridge_connector_funcs with MediaTek vendor property support */
+	mtk_dsi_connector_funcs = *dsi->connector->funcs;
+	mtk_dsi_connector_funcs.reset = mtk_connector_reset;
+	mtk_dsi_connector_funcs.atomic_create_state = mtk_connector_atomic_create_state;
+	mtk_dsi_connector_funcs.atomic_duplicate_state = mtk_connector_atomic_duplicate_state;
+	mtk_dsi_connector_funcs.atomic_destroy_state = mtk_connector_atomic_destroy_state;
+	mtk_dsi_connector_funcs.atomic_set_property = mtk_connector_atomic_set_property;
+	mtk_dsi_connector_funcs.atomic_get_property = mtk_connector_atomic_get_property;
+	dsi->connector->funcs = &mtk_dsi_connector_funcs;
+
+	mtk_connector_reset(dsi->connector);
+	mtk_dsi_create_connector_properties(drm, dsi);
+
 	return 0;
 
 err_cleanup_encoder:
@@ -1007,6 +1212,7 @@ static int mtk_dsi_bind(struct device *dev, struct device *master, void *data)
 	struct drm_device *drm = data;
 	struct mtk_dsi *dsi = dev_get_drvdata(dev);
 
+	mtk_dsi_ptr = dsi;
 	ret = mtk_dsi_encoder_init(drm, dsi);
 	if (ret)
 		return ret;
@@ -1019,6 +1225,7 @@ static void mtk_dsi_unbind(struct device *dev, struct device *master,
 {
 	struct mtk_dsi *dsi = dev_get_drvdata(dev);
 
+	mtk_dsi_ptr = NULL;
 	drm_encoder_cleanup(&dsi->encoder);
 }
 
@@ -1055,6 +1262,7 @@ static int mtk_dsi_host_attach(struct mipi_dsi_host *host,
 
 			panel = of_drm_find_panel(device->dev.of_node);
 			if (!IS_ERR(panel)) {
+				dsi->panel = panel;
 				dsi->next_bridge = devm_drm_panel_bridge_add(dev, panel);
 				if (IS_ERR(dsi->next_bridge))
 					return PTR_ERR(dsi->next_bridge);
@@ -1062,6 +1270,12 @@ static int mtk_dsi_host_attach(struct mipi_dsi_host *host,
 				return ret;
 			}
 		}
+	}
+
+	if (!dsi->panel) {
+		struct drm_panel *panel = of_drm_find_panel(device->dev.of_node);
+		if (!IS_ERR(panel))
+			dsi->panel = panel;
 	}
 
 	drm_bridge_add(&dsi->bridge);
