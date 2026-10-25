@@ -119,7 +119,6 @@ static const u32 mt8173_formats[] = {
 };
 
 static const u32 mt6768_formats[] = {
-	DRM_FORMAT_C8,
 	DRM_FORMAT_XRGB8888,
 	DRM_FORMAT_ARGB8888,
 	DRM_FORMAT_BGRX8888,
@@ -455,7 +454,6 @@ static unsigned int mtk_ovl_fmt_convert(struct mtk_disp_ovl *ovl,
 	case DRM_FORMAT_RGB565:
 		return OVL_CON_CLRFMT_RGB565(ovl);
 	case DRM_FORMAT_RGB332:
-	case DRM_FORMAT_C8:
 		return 0;
 	case DRM_FORMAT_BGR565:
 		return OVL_CON_CLRFMT_RGB565(ovl) | OVL_CON_BYTE_SWAP;
