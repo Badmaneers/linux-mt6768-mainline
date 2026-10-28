@@ -600,11 +600,38 @@ static struct system_heap_priv system_heap_cc_shared_priv = {
 	.cc_shared = true,
 };
 
+/*
+ * Match the vendor 6.6 system heap device setup. Besides the 64-bit DMA
+ * mask, the heap device advertises the full 64-bit segment size; otherwise
+ * mappings performed on the heap device are split at the 64K default.
+ */
+static int system_heap_set_dev_dma(struct device *heap_dev)
+{
+	int ret;
+
+	ret = dma_coerce_mask_and_coherent(heap_dev, DMA_BIT_MASK(64));
+	if (ret)
+		return ret;
+
+	if (!heap_dev->dma_parms) {
+		heap_dev->dma_parms = devm_kzalloc(heap_dev,
+						   sizeof(*heap_dev->dma_parms),
+						   GFP_KERNEL);
+		if (!heap_dev->dma_parms)
+			return -ENOMEM;
+	}
+
+	dma_set_max_seg_size(heap_dev, (unsigned int)DMA_BIT_MASK(64));
+
+	return 0;
+}
+
 static int __init system_heap_create(void)
 {
 	struct dma_heap_export_info exp_info;
 	struct dma_heap *sys_uncached_heap;
 	struct dma_heap *sys_heap;
+	int ret;
 
 	exp_info.name = "system-uncached";
 	exp_info.ops = &system_uncached_heap_ops;
@@ -614,7 +641,10 @@ static int __init system_heap_create(void)
 	if (IS_ERR(sys_uncached_heap))
 		return PTR_ERR(sys_uncached_heap);
 
-	dma_coerce_mask_and_coherent(dma_heap_get_dev(sys_uncached_heap), DMA_BIT_MASK(64));
+	ret = system_heap_set_dev_dma(dma_heap_get_dev(sys_uncached_heap));
+	if (ret)
+		return ret;
+
 	mb(); /* make sure we only set allocate after dma_mask is set */
 	system_uncached_heap_ops.allocate = system_heap_allocate;
 
@@ -626,22 +656,38 @@ static int __init system_heap_create(void)
 	if (IS_ERR(sys_heap))
 		return PTR_ERR(sys_heap);
 
-	dma_coerce_mask_and_coherent(dma_heap_get_dev(sys_heap), DMA_BIT_MASK(64));
+	ret = system_heap_set_dev_dma(dma_heap_get_dev(sys_heap));
+	if (ret)
+		return ret;
 
 	/* Register MediaTek vendor HAL alias heaps: mtk_mm and mtk_mm-uncached */
 	exp_info.name = "mtk_mm-uncached";
 	exp_info.ops = &system_uncached_heap_ops;
 	exp_info.priv = &system_uncached_heap_priv;
 	sys_uncached_heap = dma_heap_add(&exp_info);
-	if (!IS_ERR(sys_uncached_heap))
-		dma_coerce_mask_and_coherent(dma_heap_get_dev(sys_uncached_heap), DMA_BIT_MASK(64));
+	if (IS_ERR(sys_uncached_heap)) {
+		pr_err("dma-buf: failed to register %s heap: %ld\n",
+		       exp_info.name, PTR_ERR(sys_uncached_heap));
+	} else {
+		ret = system_heap_set_dev_dma(dma_heap_get_dev(sys_uncached_heap));
+		if (ret)
+			pr_err("dma-buf: failed to configure %s heap DMA: %d\n",
+			       exp_info.name, ret);
+	}
 
 	exp_info.name = "mtk_mm";
 	exp_info.ops = &system_heap_ops;
 	exp_info.priv = &system_heap_priv;
 	sys_heap = dma_heap_add(&exp_info);
-	if (!IS_ERR(sys_heap))
-		dma_coerce_mask_and_coherent(dma_heap_get_dev(sys_heap), DMA_BIT_MASK(64));
+	if (IS_ERR(sys_heap)) {
+		pr_err("dma-buf: failed to register %s heap: %ld\n",
+		       exp_info.name, PTR_ERR(sys_heap));
+	} else {
+		ret = system_heap_set_dev_dma(dma_heap_get_dev(sys_heap));
+		if (ret)
+			pr_err("dma-buf: failed to configure %s heap DMA: %d\n",
+			       exp_info.name, ret);
+	}
 
 	if (IS_ENABLED(CONFIG_HIGHMEM) ||
 	    !IS_ENABLED(CONFIG_DMABUF_HEAPS_SYSTEM_CC_SHARED) ||
