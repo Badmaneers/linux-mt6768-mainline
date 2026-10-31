@@ -318,7 +318,6 @@ static int mtk_wdt_set_timeout(struct watchdog_device *wdt_dev,
 	struct mtk_wdt_dev *mtk_wdt = watchdog_get_drvdata(wdt_dev);
 	void __iomem *wdt_base = mtk_wdt->wdt_base;
 	u32 reg;
-	unsigned int hw_timeout, hw_pretimeout;
 
 	wdt_dev->timeout = timeout;
 	/*
@@ -330,20 +329,28 @@ static int mtk_wdt_set_timeout(struct watchdog_device *wdt_dev,
 
 	/*
 	 * One bit is the value of 512 ticks
-	 * The clock has 32 KHz.
-	 * Hardware timeout register WDT_LENGTH max timeout is 31s (2047 ticks).
-	 * If software timeout is larger than WDT_MAX_TIMEOUT, clamp the HW register
-	 * to WDT_MAX_TIMEOUT; watchdog core will ping hardware via timer worker.
+	 * The clock has 32 KHz
 	 */
-	hw_timeout = min(timeout, (unsigned int)WDT_MAX_TIMEOUT);
-	hw_pretimeout = min(wdt_dev->pretimeout, hw_timeout / 2);
-	reg = WDT_LENGTH_TIMEOUT((hw_timeout - hw_pretimeout) << 6)
+	reg = WDT_LENGTH_TIMEOUT((timeout - wdt_dev->pretimeout) << 6)
 			| WDT_LENGTH_KEY;
 	iowrite32(reg, wdt_base + WDT_LENGTH);
 
 	mtk_wdt_ping(wdt_dev);
 
 	return 0;
+}
+
+static void mtk_wdt_init(struct watchdog_device *wdt_dev)
+{
+	struct mtk_wdt_dev *mtk_wdt = watchdog_get_drvdata(wdt_dev);
+	void __iomem *wdt_base;
+
+	wdt_base = mtk_wdt->wdt_base;
+
+	if (readl(wdt_base + WDT_MODE) & WDT_MODE_EN) {
+		set_bit(WDOG_HW_RUNNING, &wdt_dev->status);
+		mtk_wdt_set_timeout(wdt_dev, wdt_dev->timeout);
+	}
 }
 
 static int mtk_wdt_stop(struct watchdog_device *wdt_dev)
@@ -357,20 +364,7 @@ static int mtk_wdt_stop(struct watchdog_device *wdt_dev)
 	reg |= WDT_MODE_KEY;
 	iowrite32(reg, wdt_base + WDT_MODE);
 
-	clear_bit(WDOG_HW_RUNNING, &wdt_dev->status);
-
 	return 0;
-}
-
-static void mtk_wdt_init(struct watchdog_device *wdt_dev)
-{
-	struct mtk_wdt_dev *mtk_wdt = watchdog_get_drvdata(wdt_dev);
-	void __iomem *wdt_base = mtk_wdt->wdt_base;
-
-	if (readl(wdt_base + WDT_MODE) & WDT_MODE_EN) {
-		dev_info(wdt_dev->parent, "stopping bootloader watchdog\n");
-		mtk_wdt_stop(wdt_dev);
-	}
 }
 
 static int mtk_wdt_start(struct watchdog_device *wdt_dev)
@@ -395,8 +389,6 @@ static int mtk_wdt_start(struct watchdog_device *wdt_dev)
 		reg |= WDT_MODE_CNT_SEL;
 	reg |= (WDT_MODE_EN | WDT_MODE_KEY);
 	iowrite32(reg, wdt_base + WDT_MODE);
-
-	set_bit(WDOG_HW_RUNNING, &wdt_dev->status);
 
 	return 0;
 }
@@ -492,8 +484,7 @@ static int mtk_wdt_probe(struct platform_device *pdev)
 	}
 
 	mtk_wdt->wdt_dev.ops = &mtk_wdt_ops;
-	mtk_wdt->wdt_dev.timeout = 120;
-	mtk_wdt->wdt_dev.max_timeout = 300;
+	mtk_wdt->wdt_dev.timeout = WDT_MAX_TIMEOUT;
 	mtk_wdt->wdt_dev.max_hw_heartbeat_ms = WDT_MAX_TIMEOUT * 1000;
 	mtk_wdt->wdt_dev.min_timeout = WDT_MIN_TIMEOUT;
 	mtk_wdt->wdt_dev.parent = dev;

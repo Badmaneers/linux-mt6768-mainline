@@ -40,15 +40,6 @@
 		#address-cells = <2>;
 		#size-cells = <2>;
 		ranges;
-
-		ramoops: ramoops@4d010000 {
-			compatible = "ramoops";
-			reg = <0 0x4d010000 0 0x000e0000>;
-			record-size = <0x00010000>;
-			console-size = <0x00040000>;
-			pmsg-size = <0x00010000>;
-			no-map;
-		};
 	};
 
 	mtkfb: mtkfb {

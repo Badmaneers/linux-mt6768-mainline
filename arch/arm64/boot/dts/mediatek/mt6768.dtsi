@@ -1300,10 +1300,8 @@
 
 		watchdog: watchdog@10007000 {
 			compatible = "mediatek,mt6768-wdt";
-			reg = <0 0x10007000 0 0x1000>;
-			interrupts = <GIC_SPI 156 IRQ_TYPE_LEVEL_LOW>;
+			reg = <0 0x10007000 0 0x100>;
 			#reset-cells = <1>;
-			timeout-sec = <120>;
 		};
 
 		timer@10008000 {
