@@ -62,7 +62,7 @@ void mtk_ccorr_config(struct device *dev, unsigned int w,
 
 	mtk_ddp_write(cmdq_pkt, w << 16 | h, &ccorr->cmdq_reg, ccorr->regs,
 		      DISP_CCORR_SIZE);
-	mtk_ddp_write(cmdq_pkt, CCORR_ENGINE_EN, &ccorr->cmdq_reg, ccorr->regs,
+	mtk_ddp_write(cmdq_pkt, CCORR_ENGINE_EN | CCORR_RELAY_MODE, &ccorr->cmdq_reg, ccorr->regs,
 		      DISP_CCORR_CFG);
 }
 
@@ -91,8 +91,11 @@ void mtk_ccorr_ctm_set(struct device *dev, struct drm_crtc_state *state)
 	struct cmdq_pkt *cmdq_pkt = NULL;
 	u32 matrix_bits = ccorr->data->matrix_bits;
 
-	if (!blob)
+	if (!blob) {
+		mtk_ddp_write(cmdq_pkt, CCORR_ENGINE_EN | CCORR_RELAY_MODE,
+			      &ccorr->cmdq_reg, ccorr->regs, DISP_CCORR_CFG);
 		return;
+	}
 
 	ctm = (struct drm_color_ctm *)blob->data;
 	input = ctm->matrix;
@@ -110,6 +113,9 @@ void mtk_ccorr_ctm_set(struct device *dev, struct drm_crtc_state *state)
 		      &ccorr->cmdq_reg, ccorr->regs, DISP_CCORR_COEF_3);
 	mtk_ddp_write(cmdq_pkt, coeffs[8] << 16,
 		      &ccorr->cmdq_reg, ccorr->regs, DISP_CCORR_COEF_4);
+
+	mtk_ddp_write(cmdq_pkt, CCORR_ENGINE_EN,
+		      &ccorr->cmdq_reg, ccorr->regs, DISP_CCORR_CFG);
 }
 
 static int mtk_disp_ccorr_bind(struct device *dev, struct device *master,
