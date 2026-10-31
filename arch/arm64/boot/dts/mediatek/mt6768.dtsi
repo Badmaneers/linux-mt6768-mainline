@@ -1726,11 +1726,9 @@
 		};
 
 		mfgcfg: syscon@13000000 {
-			compatible = "mediatek,mt6768-mfgcfg", "mediatek,mt8183-mfgcfg",
-				     "mediatek,mfgcfg", "syscon";
+			compatible = "mediatek,mt6768-mfgcfg", "mediatek,mfgcfg", "syscon";
 			reg = <0 0x13000000 0 0x1000>;
 			#clock-cells = <1>;
-			power-domains = <&spm MT6768_POWER_DOMAIN_MFG_ASYNC>;
 		};
 
 		mmsys: syscon@14000000 {

@@ -97,7 +97,7 @@ static int mt6768_mtcmos_enable(struct mt6768_mtcmos_clk *mclk)
 			regmap_read_poll_timeout_atomic(spm, mclk->ctl_offs, val,
 							!(val & SRAM_PDN_ACK), 1, 1000);
 		}
-		if (mclk->has_bus_prot && infra) {
+		if (infra) {
 			regmap_write(infra, INFRA_TOPAXI_PROTECTEN_CLR, MFG_PROT_STEP2_0_MASK);
 			regmap_write(infra, INFRA_TOPAXI_PROTECTEN_CLR, MFG_PROT_STEP1_0_MASK);
 		}
@@ -142,7 +142,7 @@ static int mt6768_mtcmos_enable(struct mt6768_mtcmos_clk *mclk)
 	}
 
 	/* 8. Release bus protect if present */
-	if (mclk->has_bus_prot && infra) {
+	if (infra) {
 		regmap_write(infra, INFRA_TOPAXI_PROTECTEN_CLR, MFG_PROT_STEP2_0_MASK);
 		regmap_write(infra, INFRA_TOPAXI_PROTECTEN_CLR, MFG_PROT_STEP1_0_MASK);
 	}
@@ -276,7 +276,7 @@ static const struct mtcmos_init_data mt6768_mtcmos_clks[] = {
 		.ctl_offs = SPM_MFG_PWR_CON,
 		.sta_mask = MFG_PWR_STA_MASK,
 		.has_sram = true,
-		.has_bus_prot = true,
+		.has_bus_prot = false,
 		.is_active = true,
 	},
 	{

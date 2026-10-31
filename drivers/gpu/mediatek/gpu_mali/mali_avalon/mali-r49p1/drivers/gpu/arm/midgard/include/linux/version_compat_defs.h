@@ -402,13 +402,18 @@ static inline long kbase_pin_user_pages_remote(struct task_struct *tsk, struct m
 #endif
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 13, 0)
+static inline enum hrtimer_restart __mali_hrtimer_dummy_cb(struct hrtimer *timer)
+{
+	return HRTIMER_NORESTART;
+}
+
 static inline void hrtimer_init(struct hrtimer *timer, clockid_t clock_id, enum hrtimer_mode mode)
 {
-	hrtimer_setup(timer, NULL, clock_id, mode);
+	hrtimer_setup(timer, __mali_hrtimer_dummy_cb, clock_id, mode);
 }
 static inline void hrtimer_init_on_stack(struct hrtimer *timer, clockid_t clock_id, enum hrtimer_mode mode)
 {
-	hrtimer_setup_on_stack(timer, NULL, clock_id, mode);
+	hrtimer_setup_on_stack(timer, __mali_hrtimer_dummy_cb, clock_id, mode);
 }
 #endif
 
