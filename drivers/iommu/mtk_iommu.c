@@ -1580,7 +1580,7 @@ static const struct mtk_iommu_plat_data mt2712_data = {
 
 static const struct mtk_iommu_plat_data mt6768_data = {
 	.m4u_plat      = M4U_MT6768,
-	.flags         = HAS_SUB_COMM_2BITS | OUT_ORDER_WR_EN | WR_THROT_EN |
+	.flags         = OUT_ORDER_WR_EN | WR_THROT_EN |
 			 SHARE_PGTABLE | MTK_IOMMU_TYPE_MM | PGTABLE_PA_35_EN,
 	.hw_list       = &m4ulist,
 	.inv_sel_reg   = REG_MMU_INV_SEL_GEN1,
@@ -1588,7 +1588,7 @@ static const struct mtk_iommu_plat_data mt6768_data = {
 	.banks_enable  = {true},
 	.iova_region   = single_domain,
 	.iova_region_nr = ARRAY_SIZE(single_domain),
-	.larbid_remap  = {{0}, {1}, {2}, {3}},
+	.larbid_remap  = {{0}, {1}, {2}, {3}, {4}},
 };
 
 static const struct mtk_iommu_plat_data mt6779_data = {
