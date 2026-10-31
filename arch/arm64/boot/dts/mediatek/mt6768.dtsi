@@ -1729,7 +1729,6 @@
 			compatible = "mediatek,mt6768-mfgcfg", "mediatek,mfgcfg", "syscon";
 			reg = <0 0x13000000 0 0x1000>;
 			#clock-cells = <1>;
-			power-domains = <&spm MT6768_POWER_DOMAIN_MFG_ASYNC>;
 		};
 
 		mmsys: syscon@14000000 {
@@ -2163,14 +2162,9 @@
 				"JOB",
 				"EVENT",
 				"PWR";
-			clocks = <&topckgen CLK_TOP_MFG_SEL>,
-				 <&mfgcfg CLK_MFGCFG_BG3D>;
-			clock-names = "mfg", "mfg_bg3d";
-			power-domains = <&spm MT6768_POWER_DOMAIN_MFG>;
 			operating-points-v2 = <&gpu_mali_opp>;
 			ged-supply = <&ged>;
 			gpu-frame-base-optimize = <1>;
-			sleep-mode-enable = <1>;
 			status = "okay";
 		};
 

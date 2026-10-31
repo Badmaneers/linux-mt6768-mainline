@@ -377,6 +377,12 @@ static int clk_mt6768_scpsys_probe(struct platform_device *pdev)
 	}
 	data->infra = infra_regmap;
 
+	/* Unconditionally clear MFG INFRACFG bus protection */
+	if (data->infra) {
+		regmap_write(data->infra, INFRA_TOPAXI_PROTECTEN_CLR, MFG_PROT_STEP2_0_MASK);
+		regmap_write(data->infra, INFRA_TOPAXI_PROTECTEN_CLR, MFG_PROT_STEP1_0_MASK);
+	}
+
 	/* 3. Allocate clock onecell data */
 	clk_data = devm_kzalloc(dev, struct_size(clk_data, hws, CLK_SCP_SYS_NR_CLK), GFP_KERNEL);
 	if (!clk_data)

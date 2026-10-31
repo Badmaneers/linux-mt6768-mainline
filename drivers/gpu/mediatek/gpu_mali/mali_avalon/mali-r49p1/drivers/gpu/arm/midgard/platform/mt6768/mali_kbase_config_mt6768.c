@@ -101,12 +101,6 @@ static inline void gpu_dvfs_status_reset_footprint(void)
 
 static int pm_callback_power_on_nolock(struct kbase_device *kbdev)
 {
-	int ret;
-
-	ret = pm_runtime_get_sync(kbdev->dev);
-	if (ret < 0)
-		dev_err(kbdev->dev, "pm_runtime_get_sync failed: %d\n", ret);
-
 #if defined(CONFIG_MTK_GPUFREQ_V2)
 	if (mtk_common_gpufreq_bringup()) {
 		mtk_common_pm_mfg_active();
@@ -184,8 +178,6 @@ static int pm_callback_power_on_nolock(struct kbase_device *kbdev)
 
 static void pm_callback_power_off_nolock(struct kbase_device *kbdev)
 {
-	pm_runtime_put_sync(kbdev->dev);
-
 #if defined(CONFIG_MTK_GPUFREQ_V2)
 	if (mtk_common_gpufreq_bringup())
 		return;

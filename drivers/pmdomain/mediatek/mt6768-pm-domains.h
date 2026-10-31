@@ -87,10 +87,6 @@ static const struct scpsys_domain_data scpsys_domain_data_mt6768[] = {
 		.pwr_sta2nd_offs = 0x0184,
 		.sram_pdn_bits = GENMASK(8, 8),
 		.sram_pdn_ack_bits = GENMASK(12, 12),
-		.bp_cfg = {
-			BUS_PROT_INFRA_NOACK(MT6768_TOP_AXI_PROT_EN_MFG_STEP1),
-			BUS_PROT_INFRA_NOACK(MT6768_TOP_AXI_PROT_EN_MFG_STEP2),
-		},
 		.caps = MTK_SCPD_DOMAIN_SUPPLY | MTK_SCPD_ALWAYS_ON,
 	},
 	[MT6768_POWER_DOMAIN_ISP] = {
