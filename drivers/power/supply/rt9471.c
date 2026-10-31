@@ -926,6 +926,7 @@ static void rt9471_shutdown(struct i2c_client *i2c)
 
 static const struct of_device_id rt9471_of_device_id[] = {
 	{ .compatible = "richtek,rt9471" },
+	{ .compatible = "richtek,swchg" },
 	{}
 };
 MODULE_DEVICE_TABLE(of, rt9471_of_device_id);

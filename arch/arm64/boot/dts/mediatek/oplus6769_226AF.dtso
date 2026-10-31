@@ -377,3 +377,22 @@
 		interrupts = <1 IRQ_TYPE_EDGE_FALLING>;
 	};
 };
+
+&i2c7 {
+	status = "okay";
+	#address-cells = <1>;
+	#size-cells = <0>;
+
+	charger@6b {
+		compatible = "ti,sgm41512-charger", "ti,bq25601d", "ti,bq25601";
+		reg = <0x6b>;
+		status = "okay";
+		ti,watchdog-timeout-ms = <0>;
+	};
+
+	charger@53 {
+		compatible = "richtek,rt9471", "richtek,swchg";
+		reg = <0x53>;
+		status = "okay";
+	};
+};

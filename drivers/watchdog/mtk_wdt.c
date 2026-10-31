@@ -303,12 +303,42 @@ static int mtk_wdt_restart(struct watchdog_device *wdt_dev,
 	return 0;
 }
 
+#define WDT_NONRST_REG2		0x24
+#define WDT_STAGE_OFS		29
+#define WDT_STAGE_MASK		0x07
+#define WDT_STAGE_KERNEL	0x03
+#define WDT_COUNTER		0x514
+
+static void mtk_wdt_ping_hardware(struct mtk_wdt_dev *mtk_wdt)
+{
+	void __iomem *wdt_base = mtk_wdt->wdt_base;
+	u32 len;
+
+	/*
+	 * On MediaTek MT6768 TopRGU, writing to WDT_RST only reloads the
+	 * watchdog counter if WDT_LENGTH is unlocked with WDT_LENGTH_KEY (0x8).
+	 * Writing WDT_RST_RELOAD without WDT_LENGTH_KEY is silently ignored.
+	 */
+	len = ioread32(wdt_base + WDT_LENGTH);
+	iowrite32(len | WDT_LENGTH_KEY, wdt_base + WDT_LENGTH);
+	iowrite32(WDT_RST_RELOAD, wdt_base + WDT_RST);
+}
+
+static void mtk_wdt_mark_stage(struct mtk_wdt_dev *mtk_wdt, u32 stage)
+{
+	void __iomem *wdt_base = mtk_wdt->wdt_base;
+	u32 reg = ioread32(wdt_base + WDT_NONRST_REG2);
+
+	reg = (reg & ~(WDT_STAGE_MASK << WDT_STAGE_OFS))
+		| (stage << WDT_STAGE_OFS);
+	iowrite32(reg, wdt_base + WDT_NONRST_REG2);
+}
+
 static int mtk_wdt_ping(struct watchdog_device *wdt_dev)
 {
 	struct mtk_wdt_dev *mtk_wdt = watchdog_get_drvdata(wdt_dev);
-	void __iomem *wdt_base = mtk_wdt->wdt_base;
 
-	iowrite32(WDT_RST_RELOAD, wdt_base + WDT_RST);
+	mtk_wdt_ping_hardware(mtk_wdt);
 
 	return 0;
 }
@@ -348,11 +378,9 @@ static int mtk_wdt_stop(struct watchdog_device *wdt_dev)
 	u32 reg;
 
 	reg = readl(wdt_base + WDT_MODE);
-	reg &= ~WDT_MODE_EN;
+	reg &= ~(WDT_MODE_EN | WDT_MODE_AUTO_START | WDT_MODE_DUAL_EN | WDT_MODE_IRQ_EN);
 	reg |= WDT_MODE_KEY;
 	iowrite32(reg, wdt_base + WDT_MODE);
-
-	clear_bit(WDOG_HW_RUNNING, &wdt_dev->status);
 
 	return 0;
 }
@@ -360,25 +388,30 @@ static int mtk_wdt_stop(struct watchdog_device *wdt_dev)
 static void mtk_wdt_init(struct watchdog_device *wdt_dev)
 {
 	struct mtk_wdt_dev *mtk_wdt = watchdog_get_drvdata(wdt_dev);
-	void __iomem *wdt_base = mtk_wdt->wdt_base;
 
-	/*
-	 * Explicitly stop the hardware watchdog during boot so that the
-	 * bootloader's watchdog countdown cannot reset the SoC before
-	 * Android reaches lockscreen.
-	 */
+	/* Mark kernel stage in WDT_NONRST_REG2 for bootloader/preloader */
+	mtk_wdt_mark_stage(mtk_wdt, WDT_STAGE_KERNEL);
+
+	/* Set timeout to maximum and reload counter */
+	mtk_wdt_set_timeout(wdt_dev, wdt_dev->timeout);
+	mtk_wdt_ping_hardware(mtk_wdt);
+
+	/* Attempt to stop hardware watchdog if hardware permits */
 	mtk_wdt_stop(wdt_dev);
 
-	/* Reload once to reset any pending counter */
-	iowrite32(WDT_RST_RELOAD, wdt_base + WDT_RST);
+	/*
+	 * Keep WDOG_HW_RUNNING set so Linux watchdog core framework
+	 * also actively services the hardware watchdog alongside our timer.
+	 */
+	set_bit(WDOG_HW_RUNNING, &wdt_dev->status);
 }
 
 static void mtk_wdt_ping_timer_fn(struct timer_list *t)
 {
 	struct mtk_wdt_dev *mtk_wdt = container_of(t, struct mtk_wdt_dev, ping_timer);
 
-	iowrite32(WDT_RST_RELOAD, mtk_wdt->wdt_base + WDT_RST);
-	mod_timer(&mtk_wdt->ping_timer, jiffies + 5 * HZ);
+	mtk_wdt_ping_hardware(mtk_wdt);
+	mod_timer(&mtk_wdt->ping_timer, jiffies + 2 * HZ);
 }
 
 static int mtk_wdt_start(struct watchdog_device *wdt_dev)
@@ -538,7 +571,7 @@ static int mtk_wdt_probe(struct platform_device *pdev)
 		of_property_read_bool(dev->of_node, "mediatek,reset-by-toprgu");
 
 	timer_setup(&mtk_wdt->ping_timer, mtk_wdt_ping_timer_fn, 0);
-	mod_timer(&mtk_wdt->ping_timer, jiffies + 5 * HZ);
+	mod_timer(&mtk_wdt->ping_timer, jiffies + 2 * HZ);
 
 	return 0;
 }
@@ -559,7 +592,7 @@ static int mtk_wdt_resume(struct device *dev)
 {
 	struct mtk_wdt_dev *mtk_wdt = dev_get_drvdata(dev);
 
-	mod_timer(&mtk_wdt->ping_timer, jiffies + 5 * HZ);
+	mod_timer(&mtk_wdt->ping_timer, jiffies + 2 * HZ);
 
 	if (watchdog_active(&mtk_wdt->wdt_dev)) {
 		mtk_wdt_start(&mtk_wdt->wdt_dev);

@@ -1779,6 +1779,7 @@ static const struct of_device_id bq256xx_of_match[] = {
 	{ .compatible = "ti,bq25600d", .data = &bq256xx_chip_info_tbl[BQ25600D] },
 	{ .compatible = "ti,bq25601", .data = &bq256xx_chip_info_tbl[BQ25601] },
 	{ .compatible = "ti,bq25601d", .data = &bq256xx_chip_info_tbl[BQ25601D] },
+	{ .compatible = "ti,sgm41512-charger", .data = &bq256xx_chip_info_tbl[BQ25601D] },
 	{ .compatible = "ti,bq25611d", .data = &bq256xx_chip_info_tbl[BQ25611D] },
 	{ .compatible = "ti,bq25618", .data = &bq256xx_chip_info_tbl[BQ25618] },
 	{ .compatible = "ti,bq25619", .data = &bq256xx_chip_info_tbl[BQ25619] },
