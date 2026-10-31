@@ -2163,7 +2163,7 @@
 				"EVENT",
 				"PWR";
 			clocks = <&topckgen CLK_TOP_MFG_SEL>,
-				 <&mfgcfg 0>;
+				 <&mfgcfg CLK_MFGCFG_BG3D>;
 			clock-names = "mfg", "mfg_bg3d";
 			power-domains = <&spm MT6768_POWER_DOMAIN_MFG>;
 			operating-points-v2 = <&gpu_mali_opp>;
@@ -2184,7 +2184,7 @@
 				<&topckgen CLK_TOP_MFG_SEL>,
 				<&apmixedsys CLK_APMIXED_MFGPLL>,
 				<&topckgen CLK_TOP_SYSPLL_D3>,
-				<&mfgcfg 0>,
+				<&mfgcfg CLK_MFGCFG_BG3D>,
 				<&scpsys_clk CLK_SCP_SYS_MFG_ASYNC>,
 				<&scpsys_clk CLK_SCP_SYS_MFG>,
 				<&scpsys_clk CLK_SCP_SYS_MFG_CORE0>,

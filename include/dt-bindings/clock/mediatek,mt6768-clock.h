@@ -325,5 +325,9 @@
 #define CLK_SCP_SYS_VDEC		12
 #define CLK_SCP_SYS_NR_CLK		13
 
+/* MFGCFG */
+#define CLK_MFGCFG_BG3D			0
+#define CLK_MFGCFG_NR_CLK		1
+
 #endif
 
