@@ -10,6 +10,7 @@
 #include <linux/clk-provider.h>
 #include <linux/module.h>
 #include <linux/platform_device.h>
+#include <linux/pm_runtime.h>
 #include <dt-bindings/clock/mediatek,mt6768-clock.h>
 
 #include "clk-mtk.h"
@@ -32,7 +33,7 @@ static const struct mtk_gate mfgcfg_clks[] = {
 static const struct mtk_clk_desc mfgcfg_desc = {
 	.clks = mfgcfg_clks,
 	.num_clks = ARRAY_SIZE(mfgcfg_clks),
-	.need_runtime_pm = false,
+	.need_runtime_pm = true,
 };
 
 static const struct of_device_id of_match_clk_mt6768_mfgcfg[] = {
