@@ -309,4 +309,21 @@
 #define CLK_VDEC_EN_ENG			2
 #define CLK_VDEC_LARB1			3
 
+/* SCPSYS / MTCMOS CLOCKS */
+#define CLK_SCP_SYS_MD1			0
+#define CLK_SCP_SYS_CONN		1
+#define CLK_SCP_SYS_DPY			2
+#define CLK_SCP_SYS_DIS			3
+#define CLK_SCP_SYS_MFG			4
+#define CLK_SCP_SYS_ISP			5
+#define CLK_SCP_SYS_IFR			6
+#define CLK_SCP_SYS_MFG_CORE0		7
+#define CLK_SCP_SYS_MFG_CORE1		8
+#define CLK_SCP_SYS_MFG_ASYNC		9
+#define CLK_SCP_SYS_CAM			10
+#define CLK_SCP_SYS_VENC		11
+#define CLK_SCP_SYS_VDEC		12
+#define CLK_SCP_SYS_NR_CLK		13
+
 #endif
+

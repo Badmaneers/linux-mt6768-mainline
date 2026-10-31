@@ -61,12 +61,6 @@
 		#clock-cells = <0>;
 	};
 
-	dummy_mfg_clk: dummy-mfg-clk {
-		compatible = "fixed-clock";
-		#clock-cells = <0>;
-		clock-frequency = <0>;
-	};
-
 	ged: ged {
 		compatible = "mediatek,ged";
 		gpufreq-supply = <&gpufreq>;
@@ -1296,6 +1290,12 @@
 					};
 				};
 			};
+
+			scpsys_clk: scpsys-clk {
+				compatible = "mediatek,mt6768-scpsys-clk", "mediatek,scpsys-clk";
+				#clock-cells = <1>;
+				mediatek,infracfg = <&infracfg_ao>;
+			};
 		};
 
 		watchdog: watchdog@10007000 {
@@ -2187,10 +2187,10 @@
 				<&apmixedsys CLK_APMIXED_MFGPLL>,
 				<&topckgen CLK_TOP_SYSPLL_D3>,
 				<&mfgcfg 0>,
-				<&dummy_mfg_clk>,
-				<&dummy_mfg_clk>,
-				<&dummy_mfg_clk>,
-				<&dummy_mfg_clk>;
+				<&scpsys_clk CLK_SCP_SYS_MFG_ASYNC>,
+				<&scpsys_clk CLK_SCP_SYS_MFG>,
+				<&scpsys_clk CLK_SCP_SYS_MFG_CORE0>,
+				<&scpsys_clk CLK_SCP_SYS_MFG_CORE1>;
 			clock-names =
 				"clk_mux",
 				"clk_main_parent",

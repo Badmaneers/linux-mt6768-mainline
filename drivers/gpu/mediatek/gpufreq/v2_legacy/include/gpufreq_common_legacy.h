@@ -218,7 +218,8 @@ static inline void __gpufreq_abort(const char *exception_string, ...)
 	GPUFREQ_LOGE("[ABORT]: %s", tmp_string);
 	__gpufreq_dump_infra_status(NULL, NULL, 0);
 
-	BUG_ON(1);
+	WARN_ON(1);
+	return;
 }
 
 #endif /* __GPUFREQ_COMMON_LEGACY_H__ */

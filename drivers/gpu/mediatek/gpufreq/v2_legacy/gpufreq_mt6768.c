@@ -1416,10 +1416,19 @@ void __gpufreq_check_bus_idle(void)
 	/* polling register MFG_DEBUG_TOP (0x13000178) bit 2 = 0x1 */
 	/* => 1 for GPU (BUS) idle, 0 for GPU (BUS) non-idle */
 	/* do not care about 0x13000174 */
-	do {
-		val = readl(g_MFG_base + 0x178);
-		GPUFREQ_LOGD("0x13000178 val = 0x%x\n", val);
-	} while ((val & 0x4) != 0x4);
+	{
+		int count = 1000;
+		do {
+			val = readl(g_MFG_base + 0x178);
+			GPUFREQ_LOGD("0x13000178 val = 0x%x\n", val);
+			if ((val & 0x4) == 0x4)
+				break;
+			udelay(2);
+		} while (--count > 0);
+
+		if ((val & 0x4) != 0x4)
+			GPUFREQ_LOGW("MFG bus idle check timed out (0x13000178 = 0x%x)\n", val);
+	}
 }
 
 void __gpufreq_dump_infra_status(char *log_buf, int *log_len, int log_size)
