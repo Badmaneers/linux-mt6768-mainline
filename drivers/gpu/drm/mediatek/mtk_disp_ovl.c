@@ -305,6 +305,7 @@ void mtk_ovl_stop(struct device *dev)
 	struct mtk_disp_ovl *ovl = dev_get_drvdata(dev);
 
 	writel_relaxed(0x0, ovl->regs + DISP_REG_OVL_EN);
+	writel_relaxed(0x0, ovl->regs + DISP_REG_OVL_SRC_CON);
 	if (ovl->data->smi_id_en) {
 		unsigned int reg;
 
@@ -717,6 +718,26 @@ static int mtk_disp_ovl_probe(struct platform_device *pdev)
 
 	priv->data = of_device_get_match_data(dev);
 	platform_set_drvdata(pdev, priv);
+
+	/*
+	 * Reset OVL hardware and disable all layers left active by bootloader.
+	 * Little Kernel leaves OVL layer 0 scanning out from bootloader DRAM
+	 * physical addresses. When mtk-iommu initializes LARB0, translation
+	 * is enabled for Port 0 (DISP_OVL0). Any in-flight DMA read of physical
+	 * addresses immediately produces IOMMU translation faults (type 0x5).
+	 * Quiesce the hardware before DRM atomic commits configure valid IOVAs.
+	 */
+	ret = clk_prepare_enable(priv->clk);
+	if (ret)
+		return dev_err_probe(dev, ret, "failed to enable ovl clk for reset\n");
+
+	writel_relaxed(0x1, priv->regs + DISP_REG_OVL_RST);
+	writel_relaxed(0x0, priv->regs + DISP_REG_OVL_RST);
+	writel_relaxed(0x0, priv->regs + DISP_REG_OVL_EN);
+	writel_relaxed(0x0, priv->regs + DISP_REG_OVL_SRC_CON);
+	writel_relaxed(0x0, priv->regs + DISP_REG_OVL_INTEN);
+	writel_relaxed(0x0, priv->regs + DISP_REG_OVL_INTSTA);
+	clk_disable_unprepare(priv->clk);
 
 	ret = mtk_disp_link_larb(dev);
 	if (ret)
