@@ -81,6 +81,7 @@ struct mtk_wdt_dev {
 	bool has_swsysrst_en;
 	const u8 *toprgu_sw_rst_tb;
 	int toprgu_sw_rst_num;
+	struct timer_list ping_timer;
 };
 
 struct mtk_wdt_data {
@@ -340,19 +341,6 @@ static int mtk_wdt_set_timeout(struct watchdog_device *wdt_dev,
 	return 0;
 }
 
-static void mtk_wdt_init(struct watchdog_device *wdt_dev)
-{
-	struct mtk_wdt_dev *mtk_wdt = watchdog_get_drvdata(wdt_dev);
-	void __iomem *wdt_base;
-
-	wdt_base = mtk_wdt->wdt_base;
-
-	if (readl(wdt_base + WDT_MODE) & WDT_MODE_EN) {
-		set_bit(WDOG_HW_RUNNING, &wdt_dev->status);
-		mtk_wdt_set_timeout(wdt_dev, wdt_dev->timeout);
-	}
-}
-
 static int mtk_wdt_stop(struct watchdog_device *wdt_dev)
 {
 	struct mtk_wdt_dev *mtk_wdt = watchdog_get_drvdata(wdt_dev);
@@ -364,7 +352,33 @@ static int mtk_wdt_stop(struct watchdog_device *wdt_dev)
 	reg |= WDT_MODE_KEY;
 	iowrite32(reg, wdt_base + WDT_MODE);
 
+	clear_bit(WDOG_HW_RUNNING, &wdt_dev->status);
+
 	return 0;
+}
+
+static void mtk_wdt_init(struct watchdog_device *wdt_dev)
+{
+	struct mtk_wdt_dev *mtk_wdt = watchdog_get_drvdata(wdt_dev);
+	void __iomem *wdt_base = mtk_wdt->wdt_base;
+
+	/*
+	 * Explicitly stop the hardware watchdog during boot so that the
+	 * bootloader's watchdog countdown cannot reset the SoC before
+	 * Android reaches lockscreen.
+	 */
+	mtk_wdt_stop(wdt_dev);
+
+	/* Reload once to reset any pending counter */
+	iowrite32(WDT_RST_RELOAD, wdt_base + WDT_RST);
+}
+
+static void mtk_wdt_ping_timer_fn(struct timer_list *t)
+{
+	struct mtk_wdt_dev *mtk_wdt = container_of(t, struct mtk_wdt_dev, ping_timer);
+
+	iowrite32(WDT_RST_RELOAD, mtk_wdt->wdt_base + WDT_RST);
+	mod_timer(&mtk_wdt->ping_timer, jiffies + 5 * HZ);
 }
 
 static int mtk_wdt_start(struct watchdog_device *wdt_dev)
@@ -523,12 +537,17 @@ static int mtk_wdt_probe(struct platform_device *pdev)
 	mtk_wdt->reset_by_toprgu =
 		of_property_read_bool(dev->of_node, "mediatek,reset-by-toprgu");
 
+	timer_setup(&mtk_wdt->ping_timer, mtk_wdt_ping_timer_fn, 0);
+	mod_timer(&mtk_wdt->ping_timer, jiffies + 5 * HZ);
+
 	return 0;
 }
 
 static int mtk_wdt_suspend(struct device *dev)
 {
 	struct mtk_wdt_dev *mtk_wdt = dev_get_drvdata(dev);
+
+	timer_delete_sync(&mtk_wdt->ping_timer);
 
 	if (watchdog_active(&mtk_wdt->wdt_dev))
 		mtk_wdt_stop(&mtk_wdt->wdt_dev);
@@ -539,6 +558,8 @@ static int mtk_wdt_suspend(struct device *dev)
 static int mtk_wdt_resume(struct device *dev)
 {
 	struct mtk_wdt_dev *mtk_wdt = dev_get_drvdata(dev);
+
+	mod_timer(&mtk_wdt->ping_timer, jiffies + 5 * HZ);
 
 	if (watchdog_active(&mtk_wdt->wdt_dev)) {
 		mtk_wdt_start(&mtk_wdt->wdt_dev);
