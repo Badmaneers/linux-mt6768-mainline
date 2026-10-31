@@ -193,6 +193,11 @@ gpio: &pio {
 	domain-supply = <&mt6358_vgpu_reg>;
 };
 
+&gpufreq {
+	vgpu-supply = <&mt6358_vgpu_reg>;
+	vsram_gpu-supply = <&mt6358_vsram_gpu_reg>;
+};
+
 &mipi_tx0 {
 	status = "okay";
 };
