@@ -429,6 +429,13 @@ static int mtk_mmsys_probe(struct platform_device *pdev)
 			dev_err(&pdev->dev, "Couldn't register mmsys reset controller: %d\n", ret);
 			return ret;
 		}
+
+		if (of_device_is_compatible(dev->of_node, "mediatek,mt6768-mmsys")) {
+			/* Quiesce bootloader scanout engines before IOMMU attaches to prevent translation faults */
+			mtk_mmsys_reset(&mmsys->rcdev, MT6768_MMSYS_SW0_RST_B_DISP_OVL0);
+			mtk_mmsys_reset(&mmsys->rcdev, MT6768_MMSYS_SW0_RST_B_DISP_OVL0_2L);
+			mtk_mmsys_reset(&mmsys->rcdev, MT6768_MMSYS_SW0_RST_B_DISP_RDMA0);
+		}
 	}
 
 	/* CMDQ is optional */
