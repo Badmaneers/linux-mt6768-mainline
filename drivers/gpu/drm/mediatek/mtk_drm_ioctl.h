@@ -70,6 +70,34 @@ int mtk_drm_ioctl_pq_proxy(struct drm_device *dev, void *data,
 			   struct drm_file *file_priv);
 int mtk_drm_ioctl_pq_frame_config(struct drm_device *dev, void *data,
 				  struct drm_file *file_priv);
+int mtk_drm_ioctl_gem_create(struct drm_device *dev, void *data,
+			     struct drm_file *file_priv);
+int mtk_drm_ioctl_gem_map_offset(struct drm_device *dev, void *data,
+				 struct drm_file *file_priv);
+int mtk_drm_ioctl_mml_gem_submit(struct drm_device *dev, void *data,
+				 struct drm_file *file_priv);
+int mtk_drm_ioctl_fm_lcm_auto_test(struct drm_device *dev, void *data,
+				   struct drm_file *file_priv);
+int mtk_drm_ioctl_set_lease_info(struct drm_device *dev, void *data,
+				 struct drm_file *file_priv);
+int mtk_drm_ioctl_get_lease_info(struct drm_device *dev, void *data,
+				 struct drm_file *file_priv);
+int mtk_drm_ioctl_dummy_cmd_on(struct drm_device *dev, void *data,
+			       struct drm_file *file_priv);
+int mtk_drm_ioctl_set_ovl_layer(struct drm_device *dev, void *data,
+				struct drm_file *file_priv);
+int mtk_drm_ioctl_map_dma_buf(struct drm_device *dev, void *data,
+			      struct drm_file *file_priv);
+int mtk_drm_ioctl_unmap_dma_buf(struct drm_device *dev, void *data,
+				struct drm_file *file_priv);
+int mtk_drm_ioctl_oddmr_load_param(struct drm_device *dev, void *data,
+				   struct drm_file *file_priv);
+int mtk_drm_ioctl_oddmr_ctl(struct drm_device *dev, void *data,
+			    struct drm_file *file_priv);
+int mtk_drm_ioctl_esd_stat_chk(struct drm_device *dev, void *data,
+			       struct drm_file *file_priv);
+int mtk_drm_ioctl_mml_ctrl(struct drm_device *dev, void *data,
+			   struct drm_file *file_priv);
 void drm_trigger_repaint(enum DRM_REPAINT_TYPE type, struct drm_device *drm_dev);
 
 #define MTK_NUM_IOCTLS 0x60

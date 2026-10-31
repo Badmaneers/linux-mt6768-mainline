@@ -43,6 +43,10 @@
 #define DRM_MTK_GET_CHIST_CAPS		0x47
 #define DRM_MTK_SET_CHIST_CONFIG	0x48
 
+#define DRM_MTK_SET_OVL_LAYER		0x4A
+#define DRM_MTK_MAP_DMA_BUF		0x4B
+#define DRM_MTK_UNMAP_DMA_BUF		0x4C
+
 #define DRM_MTK_GET_PQ_CAPS		0x54
 #define DRM_MTK_SET_PQ_CAPS		0x55
 
@@ -102,6 +106,7 @@ enum MTK_LAYERING_CAPS {
 	MTK_NO_FBDC = 0x00000020,
 	MTK_CLIENT_CLEAR_LAYER = 0x00000040,
 	MTK_DISP_CLIENT_CLEAR_LAYER = 0x00000080,
+	MTK_MML_DISP_MDP_LAYER = 0x00002000,
 };
 
 struct drm_mtk_session {
@@ -408,6 +413,168 @@ enum mtk_pq_frame_cfg_cmd {
 	PQ_CMD_MAX = 65535,
 };
 
+struct drm_mtk_gem_create {
+	__u64 size;
+	__u32 flags;
+	__u32 handle;
+};
+
+struct drm_mtk_gem_map_off {
+	__u32 handle;
+	__u32 pad;
+	__u64 offset;
+};
+
+struct mml_submit {
+	_Bool update;
+};
+
+enum MTK_PANEL_ID {
+	MTK_PANEL_DSI0,
+	MTK_PANEL_EDP,
+	MTK_PANEL_DP0,
+	MTK_PANEL_DP1,
+	MTK_PANEL_DSI1_0,
+	MTK_PANEL_DSI1_1,
+	MTK_PANEL_DSI2,
+};
+
+enum MTK_FB_USER_TYPE {
+	MTK_USER_NORMAL,
+	MTK_USER_AVM,
+};
+
+struct mtk_drm_layer_info {
+	enum MTK_PANEL_ID panel_id;
+	unsigned int layer_id;
+	unsigned int layer_en;
+	unsigned int src_x;
+	unsigned int src_y;
+	unsigned int src_w;
+	unsigned int src_h;
+	unsigned int src_pitch;
+	unsigned int crop_w;
+	unsigned int crop_h;
+	unsigned int tgt_x;
+	unsigned int tgt_y;
+	unsigned int tgt_w;
+	unsigned int tgt_h;
+	unsigned int src_format;
+	unsigned long long pts;
+
+	void *src_vaddr;
+	__u64 src_mvaddr;
+	int dma_fd;
+	_Bool compress;
+	enum MTK_FB_USER_TYPE user_type;
+};
+
+struct mtk_drm_dma_buf {
+	__s32 fd;
+	__u64 mva;
+};
+
+enum MTK_DRM_ODDMR_CTL_CMD {
+	MTK_DRM_ODDMR_OD_INIT = 0,
+	MTK_DRM_ODDMR_OD_ENABLE = 1,
+	MTK_DRM_ODDMR_OD_DISABLE = 2,
+	MTK_DRM_ODDMR_DMR_INIT = 3,
+	MTK_DRM_ODDMR_DMR_ENABLE = 4,
+	MTK_DRM_ODDMR_DMR_DISABLE = 5,
+	MTK_DRM_ODDMR_LOAD_PARAM = 6,
+	MTK_DRM_ODDMR_OD_READ_SW_REG = 7,
+	MTK_DRM_ODDMR_OD_WRITE_SW_REG = 8,
+	MTK_DRM_ODDMR_OD_USER_GAIN = 9,
+	MTK_DRM_ODDMR_REMAP_ENABLE = 10,
+	MTK_DRM_ODDMR_REMAP_DISABLE = 11,
+	MTK_DRM_ODDMR_REMAP_TARGET = 12,
+	MTK_DRM_ODDMR_DBI_NORMAL_COUNTING_CTL = 13,
+	MTK_DRM_ODDMR_DBI_IRDROP_ENABLE = 14,
+	MTK_DRM_ODDMR_DBI_SET_GAIN_RATIO = 15,
+	MTK_DRM_ODDMR_DMR_BINSET_INIT = 16,
+	MTK_DRM_ODDMR_DMR_BINSET_CHG = 17,
+	MTK_DRM_ODDMR_REG_TUNING_INIT = 19,
+	MTK_DRM_ODDMR_REG_TUNING_ENABLE = 20,
+};
+
+struct mtk_drm_oddmr_ctl {
+	enum MTK_DRM_ODDMR_CTL_CMD cmd;
+	__u32 size;
+	__u8 *data;
+};
+
+struct mtk_drm_oddmr_param {
+	__u32 head_id;
+	__u32 size;
+	__u8 *data;
+	__u32 checksum;
+};
+
+struct mtk_drm_mml_caps_info {
+	__u32 mode_caps;
+	__u32 hw_caps;
+};
+
+struct mtk_drm_mml_query_hw_support {
+	void *info;
+	_Bool support;
+};
+
+enum mtk_drm_mml_func {
+	mtk_drm_mml_func_unknown,
+	mtk_drm_mml_func_get_caps,
+	mtk_drm_mml_func_query_hw_support,
+};
+
+struct mtk_drm_mml_ctrl {
+	__u32 func;
+	union {
+		struct mtk_drm_mml_caps_info caps;
+		struct mtk_drm_mml_query_hw_support query;
+	};
+};
+
+struct DISP_WRITE_REG {
+	unsigned int reg;
+	unsigned int val;
+	unsigned int mask;
+};
+
+struct DISP_READ_REG {
+	unsigned int reg;
+	unsigned int val;
+	unsigned int mask;
+};
+
+#define DISP_COLOR_SWREG_START          (0xFFFF0000)
+#define DISP_COLOR_SWREG_COLOR_BASE     (DISP_COLOR_SWREG_START)
+#define DISP_COLOR_SWREG_TDSHP_BASE     (DISP_COLOR_SWREG_COLOR_BASE + 0x1000)
+#define DISP_COLOR_SWREG_PQDC_BASE      (DISP_COLOR_SWREG_TDSHP_BASE + 0x1000)
+#define DISP_COLOR_SWREG_PQDS_BASE      (DISP_COLOR_SWREG_PQDC_BASE + 0x1000)
+#define DISP_COLOR_SWREG_MDP_COLOR_BASE (DISP_COLOR_SWREG_PQDS_BASE + 0x1000)
+#define DISP_COLOR_SWREG_END            (DISP_COLOR_SWREG_MDP_COLOR_BASE + 0x1000)
+
+#define SWREG_COLOR_BASE_ADDRESS        (DISP_COLOR_SWREG_COLOR_BASE + 0x0000)
+#define SWREG_GAMMA_BASE_ADDRESS        (DISP_COLOR_SWREG_COLOR_BASE + 0x0001)
+#define SWREG_TDSHP_BASE_ADDRESS        (DISP_COLOR_SWREG_COLOR_BASE + 0x0002)
+#define SWREG_AAL_BASE_ADDRESS          (DISP_COLOR_SWREG_COLOR_BASE + 0x0003)
+#define SWREG_MIRAVISION_VERSION        (DISP_COLOR_SWREG_COLOR_BASE + 0x0004)
+#define SWREG_SW_VERSION_VIDEO_DC       (DISP_COLOR_SWREG_COLOR_BASE + 0x0005)
+#define SWREG_SW_VERSION_AAL            (DISP_COLOR_SWREG_COLOR_BASE + 0x0006)
+#define SWREG_CCORR_BASE_ADDRESS        (DISP_COLOR_SWREG_COLOR_BASE + 0x0007)
+#define SWREG_MDP_COLOR_BASE_ADDRESS    (DISP_COLOR_SWREG_COLOR_BASE + 0x0008)
+#define SWREG_COLOR_MODE                (DISP_COLOR_SWREG_COLOR_BASE + 0x0009)
+#define SWREG_RSZ_BASE_ADDRESS          (DISP_COLOR_SWREG_COLOR_BASE + 0x000A)
+#define SWREG_MDP_RDMA_BASE_ADDRESS     (DISP_COLOR_SWREG_COLOR_BASE + 0x000B)
+#define SWREG_MDP_AAL_BASE_ADDRESS      (DISP_COLOR_SWREG_COLOR_BASE + 0x000C)
+#define SWREG_MDP_HDR_BASE_ADDRESS      (DISP_COLOR_SWREG_COLOR_BASE + 0x000D)
+#define SWREG_MML_COLOR_BASE_ADDRESS    (DISP_COLOR_SWREG_COLOR_BASE + 0x000E)
+#define SWREG_MML_TDSHP_BASE_ADDRESS    (DISP_COLOR_SWREG_COLOR_BASE + 0x000F)
+#define SWREG_DISP_TDSHP_BASE_ADDRESS   (DISP_COLOR_SWREG_COLOR_BASE + 0x0010)
+#define SWREG_MML_AAL_BASE_ADDRESS      (DISP_COLOR_SWREG_COLOR_BASE + 0x0011)
+#define SWREG_MML_HDR_BASE_ADDRESS      (DISP_COLOR_SWREG_COLOR_BASE + 0x0012)
+#define SWREG_TDSHP_TUNING_MODE         (DISP_COLOR_SWREG_TDSHP_BASE + 0x0000)
+
 #define MTK_SUBMIT_NO_IMPLICIT   0x0 /* disable implicit sync */
 #define MTK_SUBMIT_IN_FENCE      0x1 /* enable input fence */
 #define MTK_SUBMIT_OUT_FENCE     0x2 /* enable output fence */
@@ -429,6 +596,10 @@ struct drm_mtk_gem_submit {
 	__s32 ion_fd;
 };
 
+#define DRM_IOCTL_MTK_GEM_CREATE	DRM_IOWR(DRM_COMMAND_BASE + \
+		DRM_MTK_GEM_CREATE, struct drm_mtk_gem_create)
+#define DRM_IOCTL_MTK_GEM_MAP_OFFSET	DRM_IOWR(DRM_COMMAND_BASE + \
+		DRM_MTK_GEM_MAP_OFFSET, struct drm_mtk_gem_map_off)
 #define DRM_IOCTL_MTK_GEM_SUBMIT	DRM_IOWR(DRM_COMMAND_BASE + \
 		DRM_MTK_GEM_SUBMIT, struct drm_mtk_gem_submit)
 #define DRM_IOCTL_MTK_SESSION_CREATE	DRM_IOWR(DRM_COMMAND_BASE + \
@@ -439,10 +610,6 @@ struct drm_mtk_gem_submit {
 		DRM_MTK_LAYERING_RULE, struct drm_mtk_layering_info)
 #define DRM_IOCTL_MTK_CRTC_GETFENCE	DRM_IOWR(DRM_COMMAND_BASE + \
 		DRM_MTK_CRTC_GETFENCE, struct drm_mtk_fence)
-#define DRM_IOCTL_MTK_CRTC_FENCE_REL	DRM_IOWR(DRM_COMMAND_BASE + \
-		DRM_MTK_CRTC_FENCE_REL, struct drm_mtk_fence)
-#define DRM_IOCTL_MTK_CRTC_GETSFFENCE	DRM_IOWR(DRM_COMMAND_BASE + \
-		DRM_MTK_CRTC_GETSFFENCE, struct drm_mtk_fence)
 #define DRM_IOCTL_MTK_WAIT_REPAINT	DRM_IOWR(DRM_COMMAND_BASE + \
 		DRM_MTK_WAIT_REPAINT, unsigned int)
 #define DRM_IOCTL_MTK_GET_DISPLAY_CAPS	DRM_IOWR(DRM_COMMAND_BASE + \
@@ -455,18 +622,34 @@ struct drm_mtk_gem_submit {
 		DRM_MTK_SEC_HND_TO_GEM_HND, struct drm_mtk_sec_gem_hnd)
 #define DRM_IOCTL_MTK_GET_MASTER_INFO	DRM_IOWR(DRM_COMMAND_BASE + \
 		DRM_MTK_GET_MASTER_INFO, int)
+#define DRM_IOCTL_MTK_CRTC_GETSFFENCE	DRM_IOWR(DRM_COMMAND_BASE + \
+		DRM_MTK_CRTC_GETSFFENCE, struct drm_mtk_fence)
+#define DRM_IOCTL_MTK_MML_GEM_SUBMIT	DRM_IOWR(DRM_COMMAND_BASE + \
+		DRM_MTK_MML_GEM_SUBMIT, struct mml_submit)
 #define DRM_IOCTL_MTK_SET_MSYNC_PARAMS	DRM_IOWR(DRM_COMMAND_BASE + \
 		DRM_MTK_SET_MSYNC_PARAMS, struct msync_parameter_table)
 #define DRM_IOCTL_MTK_GET_MSYNC_PARAMS	DRM_IOWR(DRM_COMMAND_BASE + \
 		DRM_MTK_GET_MSYNC_PARAMS, struct msync_parameter_table)
+#define DRM_IOCTL_MTK_FACTORY_LCM_AUTO_TEST	DRM_IOWR(DRM_COMMAND_BASE + \
+		DRM_MTK_FACTORY_LCM_AUTO_TEST, int)
+#define DRM_IOCTL_MTK_DRM_SET_LEASE_INFO	DRM_IOWR(DRM_COMMAND_BASE + \
+		DRM_MTK_DRM_SET_LEASE_INFO, int)
+#define DRM_IOCTL_MTK_DRM_GET_LEASE_INFO	DRM_IOWR(DRM_COMMAND_BASE + \
+		DRM_MTK_DRM_GET_LEASE_INFO, int)
+#define DRM_IOCTL_MTK_CRTC_FENCE_REL	DRM_IOWR(DRM_COMMAND_BASE + \
+		DRM_MTK_CRTC_FENCE_REL, struct drm_mtk_fence)
 #define DRM_IOCTL_MTK_GET_MODE_EXT_INFO	DRM_IOWR(DRM_COMMAND_BASE + \
 		DRM_MTK_GET_MODE_EXT_INFO, struct drm_mtk_mode_ext_info)
 #define DRM_IOCTL_MTK_HWVSYNC_ON	DRM_IOWR(DRM_COMMAND_BASE + \
 		DRM_MTK_HWVSYNC_ON, unsigned int)
+#define DRM_IOCTL_MTK_DUMMY_CMD_ON	DRM_IOWR(DRM_COMMAND_BASE + \
+		DRM_MTK_DUMMY_CMD_ON, unsigned int)
 #define DRM_IOCTL_MTK_GET_LCM_INDEX	DRM_IOWR(DRM_COMMAND_BASE + \
 		DRM_MTK_GET_LCM_INDEX, unsigned int)
 #define DRM_IOCTL_MTK_SUPPORT_COLOR_TRANSFORM DRM_IOWR(DRM_COMMAND_BASE + \
 		DRM_MTK_SUPPORT_COLOR_TRANSFORM, struct DISP_COLOR_TRANSFORM)
+#define DRM_IOCTL_MTK_PQ_PROXY_IOCTL	DRM_IOWR(DRM_COMMAND_BASE + \
+		DRM_MTK_PQ_PROXY_IOCTL, struct mtk_drm_pq_proxy_ctl)
 #define DRM_IOCTL_MTK_DEBUG_LOG		DRM_IOWR(DRM_COMMAND_BASE + \
 		DRM_MTK_DEBUG_LOG, int)
 #define DRM_IOCTL_MTK_GET_CHIST		DRM_IOWR(DRM_COMMAND_BASE + \
@@ -475,17 +658,29 @@ struct drm_mtk_gem_submit {
 		DRM_MTK_GET_CHIST_CAPS, struct drm_mtk_chist_caps)
 #define DRM_IOCTL_MTK_SET_CHIST_CONFIG	DRM_IOWR(DRM_COMMAND_BASE + \
 		DRM_MTK_SET_CHIST_CONFIG, struct drm_mtk_chist_config)
+#define DRM_IOCTL_MTK_SET_OVL_LAYER	DRM_IOWR(DRM_COMMAND_BASE + \
+		DRM_MTK_SET_OVL_LAYER, struct mtk_drm_layer_info)
+#define DRM_IOCTL_MTK_MAP_DMA_BUF	DRM_IOWR(DRM_COMMAND_BASE + \
+		DRM_MTK_MAP_DMA_BUF, struct mtk_drm_dma_buf)
+#define DRM_IOCTL_MTK_UNMAP_DMA_BUF	DRM_IOWR(DRM_COMMAND_BASE + \
+		DRM_MTK_UNMAP_DMA_BUF, int)
 #define DRM_IOCTL_MTK_GET_PQ_CAPS	DRM_IOWR(DRM_COMMAND_BASE + \
 		DRM_MTK_GET_PQ_CAPS, struct mtk_drm_pq_caps_info)
 #define DRM_IOCTL_MTK_SET_PQ_CAPS	DRM_IOWR(DRM_COMMAND_BASE + \
 		DRM_MTK_SET_PQ_CAPS, struct mtk_drm_pq_caps_info)
+#define DRM_IOCTL_MTK_ODDMR_LOAD_PARAM	DRM_IOWR(DRM_COMMAND_BASE + \
+		DRM_MTK_ODDMR_LOAD_PARAM, struct mtk_drm_oddmr_param)
+#define DRM_IOCTL_MTK_ODDMR_CTL		DRM_IOWR(DRM_COMMAND_BASE + \
+		DRM_MTK_ODDMR_CTL, struct mtk_drm_oddmr_ctl)
 #define DRM_IOCTL_MTK_GET_PANELS_INFO	DRM_IOWR(DRM_COMMAND_BASE + \
 		DRM_MTK_GET_PANELS_INFO, struct mtk_drm_panels_info)
 #define DRM_IOCTL_MTK_KICK_IDLE		DRM_IOWR(DRM_COMMAND_BASE + \
 		DRM_MTK_KICK_IDLE, unsigned int)
-#define DRM_IOCTL_MTK_PQ_PROXY_IOCTL	DRM_IOWR(DRM_COMMAND_BASE + \
-		DRM_MTK_PQ_PROXY_IOCTL, struct mtk_drm_pq_proxy_ctl)
 #define DRM_IOCTL_MTK_PQ_FRAME_CONFIG	DRM_IOWR(DRM_COMMAND_BASE + \
 		DRM_MTK_PQ_FRAME_CONFIG, struct mtk_drm_pq_config_ctl)
+#define DRM_IOCTL_MTK_ESD_STAT_CHK	DRM_IOWR(DRM_COMMAND_BASE + \
+		DRM_MTK_ESD_STAT_CHK, unsigned int)
+#define DRM_IOCTL_MTK_MML_CTRL		DRM_IOWR(DRM_COMMAND_BASE + \
+		DRM_MTK_MML_CTRL, struct mtk_drm_mml_ctrl)
 
 #endif /* _UAPI_MEDIATEK_DRM_H */

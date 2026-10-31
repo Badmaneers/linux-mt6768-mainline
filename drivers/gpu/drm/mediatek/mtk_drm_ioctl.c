@@ -12,6 +12,8 @@
 #include <linux/slab.h>
 #include <linux/vmalloc.h>
 #include <linux/atomic.h>
+#include <linux/dma-buf.h>
+#include <drm/drm_gem.h>
 #include <drm/drm_atomic.h>
 #include <drm/drm_connector.h>
 #include <drm/drm_crtc.h>
@@ -582,6 +584,14 @@ int mtk_drm_ioctl_set_msync_params(struct drm_device *dev, void *data,
 int mtk_drm_ioctl_get_msync_params(struct drm_device *dev, void *data,
 				   struct drm_file *file_priv)
 {
+	struct msync_parameter_table *config = data;
+
+	if (!config)
+		return -EFAULT;
+
+	config->msync_max_fps = 60;
+	config->msync_min_fps = 60;
+	config->msync_level_num = 0;
 	return 0;
 }
 
@@ -604,6 +614,17 @@ int mtk_drm_ioctl_get_lcm_index(struct drm_device *dev, void *data,
 int mtk_drm_ioctl_support_color_transform(struct drm_device *dev, void *data,
 					  struct drm_file *file_priv)
 {
+	struct DISP_COLOR_TRANSFORM *color_transform = data;
+	int i;
+
+	if (!color_transform)
+		return -EFAULT;
+
+	for (i = 0; i < 3; i++) {
+		if (color_transform->matrix[i][3] != 0)
+			return -EFAULT;
+	}
+
 	return 0;
 }
 
@@ -622,6 +643,19 @@ int mtk_drm_ioctl_get_chist(struct drm_device *dev, void *data,
 int mtk_drm_ioctl_get_chist_caps(struct drm_device *dev, void *data,
 				 struct drm_file *file_priv)
 {
+	struct drm_mtk_chist_caps *caps_info = data;
+	int i;
+
+	if (!caps_info)
+		return -EINVAL;
+
+	caps_info->lcm_width = 720;
+	caps_info->lcm_height = 1600;
+	caps_info->support_color = 0;
+	for (i = 0; i < MTK_DRM_DISP_CHIST_CHANNEL_COUNT; i++) {
+		caps_info->chist_config[i].channel_id = i;
+		caps_info->chist_config[i].bin_count = 256;
+	}
 	return 0;
 }
 
@@ -634,12 +668,71 @@ int mtk_drm_ioctl_set_chist_config(struct drm_device *dev, void *data,
 int mtk_drm_ioctl_get_pq_caps(struct drm_device *dev, void *data,
 			      struct drm_file *file_priv)
 {
+	struct mtk_drm_pq_caps_info *pq_info = data;
+
+	if (!pq_info)
+		return -EINVAL;
+
+	pq_info->ccorr_caps.ccorr_bit = 12;
+	pq_info->ccorr_caps.ccorr_number = 1;
+	pq_info->ccorr_caps.ccorr_linear = 1;
 	return 0;
 }
 
 int mtk_drm_ioctl_set_pq_caps(struct drm_device *dev, void *data,
 			      struct drm_file *file_priv)
 {
+	return 0;
+}
+
+#define COLOR_BASE_ADDR 0x1400f000
+#define GAMMA_BASE_ADDR 0x14012000
+#define AAL_BASE_ADDR   0x14011000
+#define CCORR_BASE_ADDR 0x14010000
+
+static int disp_pq_proxy_virtual_sw_read(struct drm_crtc *crtc, void *data)
+{
+	struct DISP_READ_REG *rParams = data;
+	unsigned int ret = 0;
+	unsigned int reg_id = rParams->reg;
+
+	switch (reg_id) {
+	case SWREG_COLOR_BASE_ADDRESS:
+		ret = COLOR_BASE_ADDR;
+		break;
+	case SWREG_GAMMA_BASE_ADDRESS:
+		ret = GAMMA_BASE_ADDR;
+		break;
+	case SWREG_AAL_BASE_ADDRESS:
+		ret = AAL_BASE_ADDR;
+		break;
+	case SWREG_CCORR_BASE_ADDRESS:
+		ret = CCORR_BASE_ADDR;
+		break;
+	case SWREG_DISP_TDSHP_BASE_ADDRESS:
+		ret = 0;
+		break;
+	case SWREG_COLOR_MODE:
+		ret = 1;
+		break;
+	case SWREG_TDSHP_TUNING_MODE:
+		ret = 0;
+		break;
+	case SWREG_MIRAVISION_VERSION:
+		ret = 0x00030007;
+		break;
+	case SWREG_SW_VERSION_VIDEO_DC:
+		ret = 1;
+		break;
+	case SWREG_SW_VERSION_AAL:
+		ret = 1;
+		break;
+	default:
+		ret = 0;
+		break;
+	}
+
+	rParams->val = ret;
 	return 0;
 }
 
@@ -679,23 +772,168 @@ int mtk_drm_ioctl_pq_proxy(struct drm_device *dev, void *data,
 	pq_type = params->cmd >> 16;
 	cmd = params->cmd & 0xffff;
 
-	if (pq_type == MTK_DISP_VIRTUAL_TYPE) {
+	switch (pq_type) {
+	case MTK_DISP_PQ_CCORR:
+		switch (cmd) {
+		case PQ_CCORR_GET_PQ_CAPS: {
+			struct mtk_drm_pq_caps_info *pq_info = (struct mtk_drm_pq_caps_info *)kdata;
+
+			if (params->size >= sizeof(struct mtk_drm_pq_caps_info)) {
+				pq_info->ccorr_caps.ccorr_bit = 12;
+				pq_info->ccorr_caps.ccorr_number = 1;
+				pq_info->ccorr_caps.ccorr_linear = 1;
+			}
+			ret = 0;
+			break;
+		}
+		case PQ_CCORR_SUPPORT_COLOR_MATRIX:
+			ret = mtk_drm_ioctl_support_color_transform(dev, kdata, file_priv);
+			break;
+		case PQ_CCORR_EVENTCTL:
+		case PQ_CCORR_SET_CCORR:
+		case PQ_CCORR_AIBLD_CV_MODE:
+		case PQ_CCORR_GET_IRQ:
+		default:
+			ret = 0;
+			break;
+		}
+		break;
+
+	case MTK_DISP_PQ_AAL:
+		switch (cmd) {
+		case PQ_AAL_GET_SIZE: {
+			struct {
+				unsigned int width;
+				unsigned int height;
+			} *size_info = (void *)kdata;
+
+			if (params->size >= sizeof(*size_info)) {
+				size_info->width = 720;
+				size_info->height = 1600;
+			}
+			ret = 0;
+			break;
+		}
+		default:
+			ret = 0;
+			break;
+		}
+		break;
+
+	case MTK_DISP_PQ_C3D:
+		switch (cmd) {
+		case PQ_C3D_GET_BIN_NUM:
+			if (params->size >= sizeof(int))
+				*(int *)kdata = 17;
+			ret = 0;
+			break;
+		default:
+			ret = 0;
+			break;
+		}
+		break;
+
+	case MTK_DISP_PQ_COLOR:
+		switch (cmd) {
+		case PQ_COLOR_READ_SW_REG:
+			if (params->size >= sizeof(struct DISP_READ_REG))
+				ret = disp_pq_proxy_virtual_sw_read(crtc, kdata);
+			break;
+		default:
+			ret = 0;
+			break;
+		}
+		break;
+
+	case MTK_DISP_PQ_GAMMA:
+		ret = 0;
+		break;
+
+	case MTK_DISP_PQ_TDSHP:
+		switch (cmd) {
+		case PQ_TDSHP_GET_SIZE: {
+			struct {
+				unsigned int width;
+				unsigned int height;
+			} *size_info = (void *)kdata;
+
+			if (params->size >= sizeof(*size_info)) {
+				size_info->width = 720;
+				size_info->height = 1600;
+			}
+			ret = 0;
+			break;
+		}
+		default:
+			ret = 0;
+			break;
+		}
+		break;
+
+	case MTK_DISP_PQ_DMR:
+	case MTK_DISP_PQ_DBI:
+		switch (cmd) {
+		case PQ_DBI_GET_HW_ID:
+			if (params->size >= sizeof(unsigned int))
+				*(unsigned int *)kdata = 0x6768;
+			ret = 0;
+			break;
+		case PQ_DBI_GET_WIDTH:
+			if (params->size >= sizeof(unsigned int))
+				*(unsigned int *)kdata = 720;
+			ret = 0;
+			break;
+		case PQ_DBI_GET_HEIGHT:
+			if (params->size >= sizeof(unsigned int))
+				*(unsigned int *)kdata = 1600;
+			ret = 0;
+			break;
+		case PQ_DBI_GET_DBV:
+			if (params->size >= sizeof(unsigned int))
+				*(unsigned int *)kdata = 2047;
+			ret = 0;
+			break;
+		case PQ_DBI_GET_FPS:
+			if (params->size >= sizeof(unsigned int))
+				*(unsigned int *)kdata = 60;
+			ret = 0;
+			break;
+		default:
+			ret = 0;
+			break;
+		}
+		break;
+
+	case MTK_DISP_VIRTUAL_TYPE:
 		switch (cmd) {
 		case PQ_VIRTUAL_GET_MASTER_INFO:
 			if (params->size >= sizeof(int))
 				*(int *)kdata = drm_is_current_master(file_priv);
+			ret = 0;
 			break;
 		case PQ_VIRTUAL_WAIT_CRTC_READY:
 			if (params->size >= sizeof(int))
 				*(int *)kdata = 1;
+			ret = 0;
+			break;
+		case PQ_COLOR_READ_SW_REG:
+			if (params->size >= sizeof(struct DISP_READ_REG))
+				ret = disp_pq_proxy_virtual_sw_read(crtc, kdata);
 			break;
 		case PQ_VIRTUAL_SET_PROPERTY:
 		case PQ_VIRTUAL_CHECK_TRIGGER:
 		case PQ_VIRTUAL_RELAY_ENGINES:
 		case PQ_VIRTUAL_GET_PIXEL_TYPE_BY_FENCE:
+		case PQ_COLOR_WRITE_SW_REG:
 		default:
+			ret = 0;
 			break;
 		}
+		break;
+
+	default:
+		ret = 0;
+		break;
 	}
 
 	if (cmd > PQ_GET_CMD_START) {
@@ -715,34 +953,291 @@ int mtk_drm_ioctl_pq_frame_config(struct drm_device *dev, void *data,
 	return 0;
 }
 
+int mtk_drm_ioctl_gem_create(struct drm_device *dev, void *data,
+			     struct drm_file *file_priv)
+{
+	return 0;
+}
+
+int mtk_drm_ioctl_gem_map_offset(struct drm_device *dev, void *data,
+				 struct drm_file *file_priv)
+{
+	struct drm_mtk_gem_map_off *args = data;
+
+	if (!args)
+		return -EINVAL;
+
+	return drm_gem_dumb_map_offset(file_priv, dev, args->handle, &args->offset);
+}
+
+int mtk_drm_ioctl_mml_gem_submit(struct drm_device *dev, void *data,
+				 struct drm_file *file_priv)
+{
+	return -EINVAL;
+}
+
+int mtk_drm_ioctl_fm_lcm_auto_test(struct drm_device *dev, void *data,
+				   struct drm_file *file_priv)
+{
+	int *result = data;
+
+	if (result)
+		*result = 0;
+	return 0;
+}
+
+static struct file *g_lease_file;
+static DEFINE_MUTEX(g_lease_mutex);
+
+int mtk_drm_ioctl_set_lease_info(struct drm_device *dev, void *data,
+				 struct drm_file *file_priv)
+{
+	int *fd = data;
+
+	if (!fd)
+		return -EINVAL;
+
+	mutex_lock(&g_lease_mutex);
+	g_lease_file = fget(*fd);
+	if (!g_lease_file) {
+		mutex_unlock(&g_lease_mutex);
+		return -EBADF;
+	}
+	mutex_unlock(&g_lease_mutex);
+	return 0;
+}
+
+int mtk_drm_ioctl_get_lease_info(struct drm_device *dev, void *data,
+				 struct drm_file *file_priv)
+{
+	int *ret_fd = data;
+	int fd;
+
+	if (!ret_fd)
+		return -EINVAL;
+
+	mutex_lock(&g_lease_mutex);
+	if (!g_lease_file) {
+		mutex_unlock(&g_lease_mutex);
+		return -ENOENT;
+	}
+
+	fd = get_unused_fd_flags(O_CLOEXEC);
+	if (fd < 0) {
+		mutex_unlock(&g_lease_mutex);
+		return fd;
+	}
+	fd_install(fd, g_lease_file);
+	get_file(g_lease_file);
+	*ret_fd = fd;
+	mutex_unlock(&g_lease_mutex);
+	return 0;
+}
+
+int mtk_drm_ioctl_dummy_cmd_on(struct drm_device *dev, void *data,
+			       struct drm_file *file_priv)
+{
+	return 0;
+}
+
+int mtk_drm_ioctl_set_ovl_layer(struct drm_device *dev, void *data,
+				struct drm_file *file_priv)
+{
+	return 0;
+}
+
+struct mtk_se_dma_map {
+	struct list_head list;
+	int fd;
+	struct dma_buf *dmabuf;
+	struct dma_buf_attachment *attach;
+	struct sg_table *sgt;
+};
+
+static LIST_HEAD(g_dma_map_list);
+static DEFINE_MUTEX(g_dma_map_lock);
+
+int mtk_drm_ioctl_map_dma_buf(struct drm_device *dev, void *data,
+			      struct drm_file *file_priv)
+{
+	struct mtk_drm_dma_buf *dma_map = data;
+	struct mtk_se_dma_map *map_entry;
+	dma_addr_t mva;
+
+	if (!dma_map || dma_map->fd <= 0)
+		return -EINVAL;
+
+	map_entry = kmalloc(sizeof(*map_entry), GFP_KERNEL);
+	if (!map_entry)
+		return -ENOMEM;
+
+	map_entry->fd = dma_map->fd;
+	map_entry->dmabuf = dma_buf_get(dma_map->fd);
+	if (IS_ERR(map_entry->dmabuf)) {
+		kfree(map_entry);
+		return PTR_ERR(map_entry->dmabuf);
+	}
+
+	map_entry->attach = dma_buf_attach(map_entry->dmabuf, dev->dev);
+	if (IS_ERR(map_entry->attach)) {
+		dma_buf_put(map_entry->dmabuf);
+		kfree(map_entry);
+		return PTR_ERR(map_entry->attach);
+	}
+
+	map_entry->sgt = dma_buf_map_attachment(map_entry->attach, DMA_BIDIRECTIONAL);
+	if (IS_ERR(map_entry->sgt)) {
+		dma_buf_detach(map_entry->dmabuf, map_entry->attach);
+		dma_buf_put(map_entry->dmabuf);
+		kfree(map_entry);
+		return PTR_ERR(map_entry->sgt);
+	}
+
+	mva = sg_dma_address(map_entry->sgt->sgl);
+	dma_map->mva = mva;
+
+	mutex_lock(&g_dma_map_lock);
+	list_add_tail(&map_entry->list, &g_dma_map_list);
+	mutex_unlock(&g_dma_map_lock);
+
+	return 0;
+}
+
+int mtk_drm_ioctl_unmap_dma_buf(struct drm_device *dev, void *data,
+				struct drm_file *file_priv)
+{
+	struct mtk_se_dma_map *map_entry, *next;
+	int *fd = data;
+
+	if (!fd)
+		return -EINVAL;
+
+	mutex_lock(&g_dma_map_lock);
+	list_for_each_entry_safe(map_entry, next, &g_dma_map_list, list) {
+		if (*fd == map_entry->fd) {
+			list_del_init(&map_entry->list);
+			dma_buf_unmap_attachment(map_entry->attach, map_entry->sgt,
+						 DMA_BIDIRECTIONAL);
+			dma_buf_detach(map_entry->dmabuf, map_entry->attach);
+			dma_buf_put(map_entry->dmabuf);
+			kfree(map_entry);
+			break;
+		}
+	}
+	mutex_unlock(&g_dma_map_lock);
+	return 0;
+}
+
+int mtk_drm_ioctl_oddmr_load_param(struct drm_device *dev, void *data,
+				   struct drm_file *file_priv)
+{
+	return 0;
+}
+
+int mtk_drm_ioctl_oddmr_ctl(struct drm_device *dev, void *data,
+			    struct drm_file *file_priv)
+{
+	struct mtk_drm_oddmr_ctl *param = data;
+
+	if (!param)
+		return -EFAULT;
+
+	switch (param->cmd) {
+	case MTK_DRM_ODDMR_OD_INIT:
+	case MTK_DRM_ODDMR_OD_ENABLE:
+	case MTK_DRM_ODDMR_OD_DISABLE:
+	case MTK_DRM_ODDMR_DMR_INIT:
+	case MTK_DRM_ODDMR_DMR_ENABLE:
+	case MTK_DRM_ODDMR_DMR_DISABLE:
+	case MTK_DRM_ODDMR_LOAD_PARAM:
+	case MTK_DRM_ODDMR_OD_READ_SW_REG:
+	case MTK_DRM_ODDMR_OD_WRITE_SW_REG:
+	case MTK_DRM_ODDMR_OD_USER_GAIN:
+	case MTK_DRM_ODDMR_REMAP_ENABLE:
+	case MTK_DRM_ODDMR_REMAP_DISABLE:
+	case MTK_DRM_ODDMR_REMAP_TARGET:
+	case MTK_DRM_ODDMR_DBI_NORMAL_COUNTING_CTL:
+	case MTK_DRM_ODDMR_DBI_IRDROP_ENABLE:
+	case MTK_DRM_ODDMR_DBI_SET_GAIN_RATIO:
+	case MTK_DRM_ODDMR_DMR_BINSET_INIT:
+	case MTK_DRM_ODDMR_DMR_BINSET_CHG:
+	case MTK_DRM_ODDMR_REG_TUNING_INIT:
+	case MTK_DRM_ODDMR_REG_TUNING_ENABLE:
+		return 0;
+	default:
+		return -EINVAL;
+	}
+}
+
+int mtk_drm_ioctl_esd_stat_chk(struct drm_device *dev, void *data,
+			       struct drm_file *file_priv)
+{
+	return 0;
+}
+
+int mtk_drm_ioctl_mml_ctrl(struct drm_device *dev, void *data,
+			   struct drm_file *file_priv)
+{
+	struct mtk_drm_mml_ctrl *mml_ctrl = data;
+
+	if (!mml_ctrl)
+		return -EINVAL;
+
+	switch (mml_ctrl->func) {
+	case mtk_drm_mml_func_get_caps:
+		mml_ctrl->caps.mode_caps = MTK_MML_DISP_MDP_LAYER;
+		mml_ctrl->caps.hw_caps = 0;
+		return 0;
+	case mtk_drm_mml_func_query_hw_support:
+		mml_ctrl->query.support = false;
+		return 0;
+	default:
+		return -EINVAL;
+	}
+}
+
 const struct drm_ioctl_desc mtk_ioctls[MTK_NUM_IOCTLS] = {
+	DRM_IOCTL_DEF_DRV(MTK_GEM_CREATE, mtk_drm_ioctl_gem_create, DRM_AUTH | DRM_RENDER_ALLOW),
+	DRM_IOCTL_DEF_DRV(MTK_GEM_MAP_OFFSET, mtk_drm_ioctl_gem_map_offset, DRM_AUTH | DRM_RENDER_ALLOW),
 	DRM_IOCTL_DEF_DRV(MTK_GEM_SUBMIT, mtk_drm_ioctl_gem_submit, DRM_RENDER_ALLOW),
 	DRM_IOCTL_DEF_DRV(MTK_SESSION_CREATE, mtk_drm_ioctl_session_create, DRM_RENDER_ALLOW),
 	DRM_IOCTL_DEF_DRV(MTK_SESSION_DESTROY, mtk_drm_ioctl_session_destroy, DRM_RENDER_ALLOW),
 	DRM_IOCTL_DEF_DRV(MTK_LAYERING_RULE, mtk_drm_ioctl_layering_rule, DRM_RENDER_ALLOW),
 	DRM_IOCTL_DEF_DRV(MTK_CRTC_GETFENCE, mtk_drm_ioctl_crtc_getfence, DRM_RENDER_ALLOW),
-	DRM_IOCTL_DEF_DRV(MTK_CRTC_FENCE_REL, mtk_drm_ioctl_crtc_fence_release, DRM_RENDER_ALLOW),
-	DRM_IOCTL_DEF_DRV(MTK_CRTC_GETSFFENCE, mtk_drm_ioctl_crtc_get_sf_fence, DRM_RENDER_ALLOW),
 	DRM_IOCTL_DEF_DRV(MTK_WAIT_REPAINT, mtk_drm_ioctl_wait_repaint, DRM_RENDER_ALLOW),
 	DRM_IOCTL_DEF_DRV(MTK_GET_DISPLAY_CAPS, mtk_drm_ioctl_get_display_caps, DRM_RENDER_ALLOW),
 	DRM_IOCTL_DEF_DRV(MTK_SET_DDP_MODE, mtk_drm_ioctl_set_ddp_mode, DRM_RENDER_ALLOW),
 	DRM_IOCTL_DEF_DRV(MTK_GET_SESSION_INFO, mtk_drm_ioctl_get_session_info, DRM_RENDER_ALLOW),
 	DRM_IOCTL_DEF_DRV(MTK_SEC_HND_TO_GEM_HND, mtk_drm_ioctl_sec_hnd_to_gem_hnd, DRM_RENDER_ALLOW),
 	DRM_IOCTL_DEF_DRV(MTK_GET_MASTER_INFO, mtk_drm_ioctl_get_master_info, DRM_RENDER_ALLOW),
+	DRM_IOCTL_DEF_DRV(MTK_CRTC_GETSFFENCE, mtk_drm_ioctl_crtc_get_sf_fence, DRM_RENDER_ALLOW),
+	DRM_IOCTL_DEF_DRV(MTK_MML_GEM_SUBMIT, mtk_drm_ioctl_mml_gem_submit, DRM_RENDER_ALLOW),
 	DRM_IOCTL_DEF_DRV(MTK_SET_MSYNC_PARAMS, mtk_drm_ioctl_set_msync_params, DRM_RENDER_ALLOW),
 	DRM_IOCTL_DEF_DRV(MTK_GET_MSYNC_PARAMS, mtk_drm_ioctl_get_msync_params, DRM_RENDER_ALLOW),
+	DRM_IOCTL_DEF_DRV(MTK_FACTORY_LCM_AUTO_TEST, mtk_drm_ioctl_fm_lcm_auto_test, DRM_RENDER_ALLOW),
+	DRM_IOCTL_DEF_DRV(MTK_DRM_SET_LEASE_INFO, mtk_drm_ioctl_set_lease_info, DRM_RENDER_ALLOW),
+	DRM_IOCTL_DEF_DRV(MTK_DRM_GET_LEASE_INFO, mtk_drm_ioctl_get_lease_info, DRM_RENDER_ALLOW),
+	DRM_IOCTL_DEF_DRV(MTK_CRTC_FENCE_REL, mtk_drm_ioctl_crtc_fence_release, DRM_RENDER_ALLOW),
 	DRM_IOCTL_DEF_DRV(MTK_GET_MODE_EXT_INFO, mtk_drm_ioctl_get_mode_ext_info, DRM_RENDER_ALLOW),
 	DRM_IOCTL_DEF_DRV(MTK_HWVSYNC_ON, mtk_drm_ioctl_hwvsync_on, DRM_RENDER_ALLOW),
+	DRM_IOCTL_DEF_DRV(MTK_DUMMY_CMD_ON, mtk_drm_ioctl_dummy_cmd_on, DRM_RENDER_ALLOW),
 	DRM_IOCTL_DEF_DRV(MTK_GET_LCM_INDEX, mtk_drm_ioctl_get_lcm_index, DRM_RENDER_ALLOW),
 	DRM_IOCTL_DEF_DRV(MTK_SUPPORT_COLOR_TRANSFORM, mtk_drm_ioctl_support_color_transform, DRM_RENDER_ALLOW),
+	DRM_IOCTL_DEF_DRV(MTK_PQ_PROXY_IOCTL, mtk_drm_ioctl_pq_proxy, DRM_RENDER_ALLOW),
 	DRM_IOCTL_DEF_DRV(MTK_DEBUG_LOG, mtk_drm_ioctl_debug_log, DRM_RENDER_ALLOW),
 	DRM_IOCTL_DEF_DRV(MTK_GET_CHIST, mtk_drm_ioctl_get_chist, DRM_RENDER_ALLOW),
 	DRM_IOCTL_DEF_DRV(MTK_GET_CHIST_CAPS, mtk_drm_ioctl_get_chist_caps, DRM_RENDER_ALLOW),
 	DRM_IOCTL_DEF_DRV(MTK_SET_CHIST_CONFIG, mtk_drm_ioctl_set_chist_config, DRM_RENDER_ALLOW),
+	DRM_IOCTL_DEF_DRV(MTK_SET_OVL_LAYER, mtk_drm_ioctl_set_ovl_layer, DRM_RENDER_ALLOW),
+	DRM_IOCTL_DEF_DRV(MTK_MAP_DMA_BUF, mtk_drm_ioctl_map_dma_buf, DRM_RENDER_ALLOW),
+	DRM_IOCTL_DEF_DRV(MTK_UNMAP_DMA_BUF, mtk_drm_ioctl_unmap_dma_buf, DRM_RENDER_ALLOW),
 	DRM_IOCTL_DEF_DRV(MTK_GET_PQ_CAPS, mtk_drm_ioctl_get_pq_caps, DRM_RENDER_ALLOW),
 	DRM_IOCTL_DEF_DRV(MTK_SET_PQ_CAPS, mtk_drm_ioctl_set_pq_caps, DRM_RENDER_ALLOW),
+	DRM_IOCTL_DEF_DRV(MTK_ODDMR_LOAD_PARAM, mtk_drm_ioctl_oddmr_load_param, DRM_RENDER_ALLOW),
+	DRM_IOCTL_DEF_DRV(MTK_ODDMR_CTL, mtk_drm_ioctl_oddmr_ctl, DRM_RENDER_ALLOW),
 	DRM_IOCTL_DEF_DRV(MTK_GET_PANELS_INFO, mtk_drm_ioctl_get_all_connector_panel_info, DRM_RENDER_ALLOW),
 	DRM_IOCTL_DEF_DRV(MTK_KICK_IDLE, mtk_drm_ioctl_kick_idle, DRM_RENDER_ALLOW),
-	DRM_IOCTL_DEF_DRV(MTK_PQ_PROXY_IOCTL, mtk_drm_ioctl_pq_proxy, DRM_RENDER_ALLOW),
 	DRM_IOCTL_DEF_DRV(MTK_PQ_FRAME_CONFIG, mtk_drm_ioctl_pq_frame_config, DRM_RENDER_ALLOW),
+	DRM_IOCTL_DEF_DRV(MTK_ESD_STAT_CHK, mtk_drm_ioctl_esd_stat_chk, DRM_RENDER_ALLOW),
+	DRM_IOCTL_DEF_DRV(MTK_MML_CTRL, mtk_drm_ioctl_mml_ctrl, DRM_RENDER_ALLOW),
 };
