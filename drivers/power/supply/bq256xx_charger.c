@@ -1701,7 +1701,7 @@ static int bq256xx_probe(struct i2c_client *client)
 
 	mutex_init(&bq->lock);
 
-	strscpy(bq->model_name, id->name, sizeof(bq->model_name));
+	strscpy(bq->model_name, id ? id->name : "bq25601d", sizeof(bq->model_name));
 
 	bq->regmap = devm_regmap_init_i2c(client,
 					bq->chip_info->bq256xx_regmap_config);
@@ -1767,6 +1767,8 @@ static const struct i2c_device_id bq256xx_i2c_ids[] = {
 	{ .name = "bq25600d", .driver_data = (kernel_ulong_t)&bq256xx_chip_info_tbl[BQ25600D] },
 	{ .name = "bq25601", .driver_data = (kernel_ulong_t)&bq256xx_chip_info_tbl[BQ25601] },
 	{ .name = "bq25601d", .driver_data = (kernel_ulong_t)&bq256xx_chip_info_tbl[BQ25601D] },
+	{ .name = "sgm41512", .driver_data = (kernel_ulong_t)&bq256xx_chip_info_tbl[BQ25601D] },
+	{ .name = "sgm41512-charger", .driver_data = (kernel_ulong_t)&bq256xx_chip_info_tbl[BQ25601D] },
 	{ .name = "bq25611d", .driver_data = (kernel_ulong_t)&bq256xx_chip_info_tbl[BQ25611D] },
 	{ .name = "bq25618", .driver_data = (kernel_ulong_t)&bq256xx_chip_info_tbl[BQ25618] },
 	{ .name = "bq25619", .driver_data = (kernel_ulong_t)&bq256xx_chip_info_tbl[BQ25619] },
@@ -1780,6 +1782,7 @@ static const struct of_device_id bq256xx_of_match[] = {
 	{ .compatible = "ti,bq25601", .data = &bq256xx_chip_info_tbl[BQ25601] },
 	{ .compatible = "ti,bq25601d", .data = &bq256xx_chip_info_tbl[BQ25601D] },
 	{ .compatible = "ti,sgm41512-charger", .data = &bq256xx_chip_info_tbl[BQ25601D] },
+	{ .compatible = "sgm,sgm41512", .data = &bq256xx_chip_info_tbl[BQ25601D] },
 	{ .compatible = "ti,bq25611d", .data = &bq256xx_chip_info_tbl[BQ25611D] },
 	{ .compatible = "ti,bq25618", .data = &bq256xx_chip_info_tbl[BQ25618] },
 	{ .compatible = "ti,bq25619", .data = &bq256xx_chip_info_tbl[BQ25619] },

@@ -303,6 +303,7 @@ static int mtk_wdt_restart(struct watchdog_device *wdt_dev,
 	return 0;
 }
 
+#define WDT_NONRST_REG		0x20
 #define WDT_NONRST_REG2		0x24
 #define WDT_STAGE_OFS		29
 #define WDT_STAGE_MASK		0x07
@@ -320,15 +321,21 @@ static void mtk_wdt_ping_hardware(struct mtk_wdt_dev *mtk_wdt)
 	 * Writing WDT_RST_RELOAD without WDT_LENGTH_KEY is silently ignored.
 	 */
 	len = ioread32(wdt_base + WDT_LENGTH);
-	iowrite32(len | WDT_LENGTH_KEY, wdt_base + WDT_LENGTH);
+	iowrite32((len & 0xFFF0) | WDT_LENGTH_KEY, wdt_base + WDT_LENGTH);
 	iowrite32(WDT_RST_RELOAD, wdt_base + WDT_RST);
 }
 
 static void mtk_wdt_mark_stage(struct mtk_wdt_dev *mtk_wdt, u32 stage)
 {
 	void __iomem *wdt_base = mtk_wdt->wdt_base;
-	u32 reg = ioread32(wdt_base + WDT_NONRST_REG2);
+	u32 reg;
 
+	reg = ioread32(wdt_base + WDT_NONRST_REG);
+	reg = (reg & ~(WDT_STAGE_MASK << WDT_STAGE_OFS))
+		| (stage << WDT_STAGE_OFS);
+	iowrite32(reg, wdt_base + WDT_NONRST_REG);
+
+	reg = ioread32(wdt_base + WDT_NONRST_REG2);
 	reg = (reg & ~(WDT_STAGE_MASK << WDT_STAGE_OFS))
 		| (stage << WDT_STAGE_OFS);
 	iowrite32(reg, wdt_base + WDT_NONRST_REG2);
@@ -378,9 +385,11 @@ static int mtk_wdt_stop(struct watchdog_device *wdt_dev)
 	u32 reg;
 
 	reg = readl(wdt_base + WDT_MODE);
-	reg &= ~(WDT_MODE_EN | WDT_MODE_AUTO_START | WDT_MODE_DUAL_EN | WDT_MODE_IRQ_EN);
+	reg &= ~WDT_MODE_EN;
 	reg |= WDT_MODE_KEY;
 	iowrite32(reg, wdt_base + WDT_MODE);
+
+	clear_bit(WDOG_HW_RUNNING, &wdt_dev->status);
 
 	return 0;
 }
@@ -388,22 +397,21 @@ static int mtk_wdt_stop(struct watchdog_device *wdt_dev)
 static void mtk_wdt_init(struct watchdog_device *wdt_dev)
 {
 	struct mtk_wdt_dev *mtk_wdt = watchdog_get_drvdata(wdt_dev);
+	void __iomem *wdt_base = mtk_wdt->wdt_base;
 
-	/* Mark kernel stage in WDT_NONRST_REG2 for bootloader/preloader */
+	/* Mark kernel stage in WDT_NONRST_REG / WDT_NONRST_REG2 for bootloader/preloader */
 	mtk_wdt_mark_stage(mtk_wdt, WDT_STAGE_KERNEL);
 
 	/* Set timeout to maximum and reload counter */
 	mtk_wdt_set_timeout(wdt_dev, wdt_dev->timeout);
 	mtk_wdt_ping_hardware(mtk_wdt);
 
-	/* Attempt to stop hardware watchdog if hardware permits */
-	mtk_wdt_stop(wdt_dev);
-
 	/*
-	 * Keep WDOG_HW_RUNNING set so Linux watchdog core framework
-	 * also actively services the hardware watchdog alongside our timer.
+	 * Keep WDOG_HW_RUNNING set if hardware watchdog is running
+	 * so Linux core framework actively services it alongside our ping timer.
 	 */
-	set_bit(WDOG_HW_RUNNING, &wdt_dev->status);
+	if (readl(wdt_base + WDT_MODE) & WDT_MODE_EN)
+		set_bit(WDOG_HW_RUNNING, &wdt_dev->status);
 }
 
 static void mtk_wdt_ping_timer_fn(struct timer_list *t)

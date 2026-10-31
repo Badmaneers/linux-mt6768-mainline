@@ -891,11 +891,13 @@ static int rt9471_probe(struct i2c_client *i2c)
 	if (ret)
 		return dev_err_probe(dev, ret, "Failed to init registers\n");
 
-	ret = devm_regmap_add_irq_chip(dev, regmap, i2c->irq,
-				       IRQF_TRIGGER_FALLING | IRQF_ONESHOT, 0,
-				       &rt9471_irq_chip, &chip->irq_chip_data);
-	if (ret)
-		return dev_err_probe(dev, ret, "Failed to add IRQ chip\n");
+	if (i2c->irq > 0) {
+		ret = devm_regmap_add_irq_chip(dev, regmap, i2c->irq,
+					       IRQF_TRIGGER_FALLING | IRQF_ONESHOT, 0,
+					       &rt9471_irq_chip, &chip->irq_chip_data);
+		if (ret)
+			return dev_err_probe(dev, ret, "Failed to add IRQ chip\n");
+	}
 
 	ret = rt9471_register_psy(chip);
 	if (ret)
@@ -905,9 +907,11 @@ static int rt9471_probe(struct i2c_client *i2c)
 	if (ret)
 		return dev_err_probe(dev, ret, "Failed to register otg\n");
 
-	ret = rt9471_register_interrupts(chip);
-	if (ret)
-		return ret;
+	if (i2c->irq > 0) {
+		ret = rt9471_register_interrupts(chip);
+		if (ret)
+			return ret;
+	}
 
 	/* After IRQs are all initialized, enable port detection by default */
 	return regmap_field_write(chip->rm_fields[F_BC12_EN], 1);

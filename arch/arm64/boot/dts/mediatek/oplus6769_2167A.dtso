@@ -375,6 +375,8 @@
 		novatek,irq-gpio = <&pio 1 GPIO_ACTIVE_HIGH>;
 		interrupt-parent = <&pio>;
 		interrupts = <1 IRQ_TYPE_EDGE_FALLING>;
+		novatek,swrst-n8-addr = <0x03F0FE>;
+		novatek,spi-rd-fast-addr = <0x03F310>;
 	};
 };
 
@@ -388,11 +390,15 @@
 		reg = <0x6b>;
 		status = "okay";
 		ti,watchdog-timeout-ms = <0>;
+		interrupt-parent = <&pio>;
+		interrupts = <7 IRQ_TYPE_LEVEL_LOW>;
 	};
 
 	charger@53 {
 		compatible = "richtek,rt9471", "richtek,swchg";
 		reg = <0x53>;
 		status = "okay";
+		interrupt-parent = <&pio>;
+		interrupts = <7 IRQ_TYPE_LEVEL_LOW>;
 	};
 };
