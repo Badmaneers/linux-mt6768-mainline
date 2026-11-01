@@ -1011,9 +1011,7 @@ static void __gpufreq_kick_pbm(int enable)
 					power = working_table[i].power;
 					found = 1;
 					kicker_pbm_by_gpu(true, power, cur_volt / 100);
-					GPUFREQ_LOGD("request GPU power = %d,
-						cur_volt = %d uV,
-						cur_freq = %d KHz\n",
+					GPUFREQ_LOGD("request GPU power = %d, cur_volt = %d uV, cur_freq = %d KHz\n",
 						power, cur_volt * 10, cur_freq);
 					return;
 				}
@@ -1026,11 +1024,10 @@ static void __gpufreq_kick_pbm(int enable)
 				/* use freq to found corresponding power budget */
 				power = working_table[tmp_idx].power;
 				kicker_pbm_by_gpu(true, power, cur_volt / 100);
-				GPUFREQ_LOGD("request GPU power = %d, cur_volt = %d uV,
-					cur_freq = %d KHz\n", power, cur_volt * 10, cur_freq);
+				GPUFREQ_LOGD("request GPU power = %d, cur_volt = %d uV, cur_freq = %d KHz\n",
+					power, cur_volt * 10, cur_freq);
 			} else {
-				GPUFREQ_LOGD("Cannot found request power in power table,
-					cur_freq = %d KHz, cur_volt = %d uV\n",
+				GPUFREQ_LOGD("Cannot found request power in power table, cur_freq = %d KHz, cur_volt = %d uV\n",
 					cur_freq, cur_volt * 10);
 			}
 		}

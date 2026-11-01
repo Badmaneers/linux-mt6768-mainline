@@ -97,7 +97,7 @@ static int mt6768_mtcmos_enable(struct mt6768_mtcmos_clk *mclk)
 			regmap_read_poll_timeout_atomic(spm, mclk->ctl_offs, val,
 							!(val & SRAM_PDN_ACK), 1, 1000);
 		}
-		if (infra) {
+		if (mclk->has_bus_prot && infra) {
 			regmap_write(infra, INFRA_TOPAXI_PROTECTEN_CLR, MFG_PROT_STEP2_0_MASK);
 			regmap_write(infra, INFRA_TOPAXI_PROTECTEN_CLR, MFG_PROT_STEP1_0_MASK);
 		}
@@ -142,7 +142,7 @@ static int mt6768_mtcmos_enable(struct mt6768_mtcmos_clk *mclk)
 	}
 
 	/* 8. Release bus protect if present */
-	if (infra) {
+	if (mclk->has_bus_prot && infra) {
 		regmap_write(infra, INFRA_TOPAXI_PROTECTEN_CLR, MFG_PROT_STEP2_0_MASK);
 		regmap_write(infra, INFRA_TOPAXI_PROTECTEN_CLR, MFG_PROT_STEP1_0_MASK);
 	}
@@ -157,6 +157,7 @@ static void mt6768_mtcmos_disable(struct mt6768_mtcmos_clk *mclk)
 	struct regmap *spm = data->spm;
 	struct regmap *infra = data->infra;
 	u32 val;
+	int ret;
 
 	if (!spm)
 		return;
@@ -164,22 +165,31 @@ static void mt6768_mtcmos_disable(struct mt6768_mtcmos_clk *mclk)
 	/* 1. Assert bus protect if present */
 	if (mclk->has_bus_prot && infra) {
 		regmap_write(infra, INFRA_TOPAXI_PROTECTEN_SET, MFG_PROT_STEP1_0_MASK);
-		regmap_read_poll_timeout_atomic(infra, INFRA_TOPAXI_PROTECTEN_STA1, val,
-						(val & MFG_PROT_STEP1_0_MASK) == MFG_PROT_STEP1_0_MASK,
-						1, 1000);
+		ret = regmap_read_poll_timeout_atomic(infra, INFRA_TOPAXI_PROTECTEN_STA1, val,
+						      (val & MFG_PROT_STEP1_0_MASK) == MFG_PROT_STEP1_0_MASK,
+						      1, 5000);
+		if (ret)
+			dev_warn(data->dev, "%s: timeout waiting for bus protect step1 (0x%08x)\n",
+				 mclk->name, val);
 
 		regmap_write(infra, INFRA_TOPAXI_PROTECTEN_SET, MFG_PROT_STEP2_0_MASK);
-		regmap_read_poll_timeout_atomic(infra, INFRA_TOPAXI_PROTECTEN_STA1, val,
-						(val & MFG_PROT_STEP2_0_MASK) == MFG_PROT_STEP2_0_MASK,
-						1, 1000);
+		ret = regmap_read_poll_timeout_atomic(infra, INFRA_TOPAXI_PROTECTEN_STA1, val,
+						      (val & MFG_PROT_STEP2_0_MASK) == MFG_PROT_STEP2_0_MASK,
+						      1, 5000);
+		if (ret)
+			dev_warn(data->dev, "%s: timeout waiting for bus protect step2 (0x%08x)\n",
+				 mclk->name, val);
 	}
 
 	/* 2. Assert SRAM_PDN if present */
 	if (mclk->has_sram) {
 		regmap_update_bits(spm, mclk->ctl_offs, SRAM_PDN, SRAM_PDN);
-		regmap_read_poll_timeout_atomic(spm, mclk->ctl_offs, val,
-						(val & SRAM_PDN_ACK) == SRAM_PDN_ACK,
-						1, 1000);
+		ret = regmap_read_poll_timeout_atomic(spm, mclk->ctl_offs, val,
+						      (val & SRAM_PDN_ACK) == SRAM_PDN_ACK,
+						      1, 1000);
+		if (ret)
+			dev_warn(data->dev, "%s: timeout waiting for SRAM_PDN_ACK set\n",
+				 mclk->name);
 	}
 
 	/* 3. Set PWR_ISO */
@@ -195,10 +205,17 @@ static void mt6768_mtcmos_disable(struct mt6768_mtcmos_clk *mclk)
 	regmap_update_bits(spm, mclk->ctl_offs, PWR_ON | PWR_ON_2ND, 0);
 
 	/* 7. Wait until status cleared */
-	regmap_read_poll_timeout_atomic(spm, SPM_PWR_STATUS, val,
-					!(val & mclk->sta_mask), 1, 5000);
-	regmap_read_poll_timeout_atomic(spm, SPM_PWR_STATUS_2ND, val,
-					!(val & mclk->sta_mask), 1, 5000);
+	ret = regmap_read_poll_timeout_atomic(spm, SPM_PWR_STATUS, val,
+					      !(val & mclk->sta_mask), 1, 5000);
+	if (ret)
+		dev_warn(data->dev, "%s: timeout waiting for SPM_PWR_STATUS clear (0x%08x)\n",
+			 mclk->name, val);
+
+	ret = regmap_read_poll_timeout_atomic(spm, SPM_PWR_STATUS_2ND, val,
+					      !(val & mclk->sta_mask), 1, 5000);
+	if (ret)
+		dev_warn(data->dev, "%s: timeout waiting for SPM_PWR_STATUS_2ND clear (0x%08x)\n",
+			 mclk->name, val);
 
 	dev_dbg(data->dev, "%s: MTCMOS power off complete\n", mclk->name);
 }
@@ -276,7 +293,7 @@ static const struct mtcmos_init_data mt6768_mtcmos_clks[] = {
 		.ctl_offs = SPM_MFG_PWR_CON,
 		.sta_mask = MFG_PWR_STA_MASK,
 		.has_sram = true,
-		.has_bus_prot = false,
+		.has_bus_prot = true,
 		.is_active = true,
 	},
 	{
