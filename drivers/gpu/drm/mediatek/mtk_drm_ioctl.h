@@ -99,6 +99,7 @@ int mtk_drm_ioctl_esd_stat_chk(struct drm_device *dev, void *data,
 int mtk_drm_ioctl_mml_ctrl(struct drm_device *dev, void *data,
 			   struct drm_file *file_priv);
 void drm_trigger_repaint(enum DRM_REPAINT_TYPE type, struct drm_device *drm_dev);
+void mtk_drm_release_all_layer_fences(void);
 
 #define MTK_NUM_IOCTLS 0x60
 

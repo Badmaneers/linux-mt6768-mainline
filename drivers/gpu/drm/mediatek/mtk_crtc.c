@@ -23,6 +23,7 @@
 #include "mtk_crtc.h"
 #include "mtk_ddp_comp.h"
 #include "mtk_drm_drv.h"
+#include "mtk_drm_ioctl.h"
 #include "mtk_plane.h"
 #include "mtk_sync.h"
 
@@ -154,6 +155,8 @@ static void mtk_crtc_destroy(struct drm_crtc *crtc)
 	}
 
 	if (mtk_crtc->present_timeline) {
+		mtk_crtc_release_present_fence(crtc);
+		mtk_drm_release_all_layer_fences();
 		mtk_sync_timeline_destroy(mtk_crtc->present_timeline);
 		mtk_crtc->present_timeline = NULL;
 	}
@@ -834,6 +837,10 @@ static void mtk_crtc_atomic_disable(struct drm_crtc *crtc,
 	drm_dbg_driver(dev, "%s %d\n", __func__, crtc->base.id);
 	if (!mtk_crtc->enabled)
 		return;
+
+	/* Release all pending fences and events before hardware shutdown so waiting threads do not hang */
+	mtk_crtc_finish_page_flip(mtk_crtc);
+	mtk_drm_release_all_layer_fences();
 
 	/* Set all pending plane state to disabled */
 	for (i = 0; i < mtk_crtc->layer_nr; i++) {

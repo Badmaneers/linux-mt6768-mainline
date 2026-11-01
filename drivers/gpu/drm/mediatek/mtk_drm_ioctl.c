@@ -268,6 +268,24 @@ int mtk_drm_ioctl_gem_submit(struct drm_device *dev, void *data,
 	return 0;
 }
 
+void mtk_drm_release_all_layer_fences(void)
+{
+	int i;
+
+	mutex_lock(&g_gem_submit_lock);
+	for (i = 0; i < MTK_MAX_LAYERS; i++) {
+		if (g_layer_timelines[i]) {
+			int target = atomic_read(&g_layer_fence_idx[i]);
+			int inc = target - g_layer_timelines[i]->value;
+
+			if (inc > 0)
+				mtk_sync_timeline_inc(g_layer_timelines[i], inc, ktime_get());
+		}
+	}
+	mutex_unlock(&g_gem_submit_lock);
+}
+EXPORT_SYMBOL(mtk_drm_release_all_layer_fences);
+
 int mtk_drm_ioctl_session_create(struct drm_device *dev, void *data,
 				 struct drm_file *file_priv)
 {
@@ -283,6 +301,7 @@ int mtk_drm_ioctl_session_create(struct drm_device *dev, void *data,
 int mtk_drm_ioctl_session_destroy(struct drm_device *dev, void *data,
 				  struct drm_file *file_priv)
 {
+	mtk_drm_release_all_layer_fences();
 	return 0;
 }
 
